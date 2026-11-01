@@ -1004,6 +1004,7 @@ export const ServicesWorkspace: React.FC<ServicesWorkspaceProps> = ({
                     <span className="font-mono tabular-nums">Suite preview, not live output</span>
                   </div>
 
+                  {compiledSlides.length === 0 && <p role="status" className="p-3 rounded border border-amber-400 text-sm">No song words have been entered. Add words your church is licensed to use in Songs before this service; the desktop export will show a reminder until then.</p>}
                   <div className="grid grid-cols-1 gap-3">
                     {compiledSlides.map((slide, sIdx) => (
                       <div
