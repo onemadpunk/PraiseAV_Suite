@@ -1,0 +1,6 @@
+{
+  "name": "Prase Suite",
+  "description": "Free, zero-cost church management and worship planning platform with native Prase AV projection sync, service orders, chord transposition, volunteer rotas, check-ins, small groups, and giving.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
