@@ -2,6 +2,12 @@
 
 A church administrator needs a Google account that the church controls. That account creates and owns the church's Firebase project. Each volunteer then signs in with their own Google account and waits for the administrator to approve access. There is no shared PraiseAV administrator account.
 
+## Where to open the Suite
+
+The recommended public address is **suite.praiseav.com**, with a clear Suite link from **praiseav.com**. Until that address is configured and its HTTPS certificate works, use the existing GitHub Pages address: **onemadpunk.github.io/PraiseAV_Suite/**. Keep both addresses in each church project’s Firebase Authentication → Authorized domains during a move, so existing users can still sign in. The Suite builds with relative asset paths and creates invitation links from the address currently open in the browser.
+
+The site owner must first add `suite.praiseav.com` as the custom domain in the Suite repository’s GitHub Pages settings, then point a DNS CNAME for `suite` to `onemadpunk.github.io`. Enable HTTPS after GitHub issues its certificate. Do not publish the new address on praiseav.com until it loads and Google sign-in has been tested there. This changes only the Suite website address; it does not move any church’s Firestore records.
+
 ## 1. Create the church project
 
 1. Open [Firebase Console](https://console.firebase.google.com/) in the church administrator's Google account.
