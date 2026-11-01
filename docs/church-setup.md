@@ -8,24 +8,29 @@ The recommended public address is **suite.praiseav.com**, with a clear Suite lin
 
 The site owner must first add `suite.praiseav.com` as the custom domain in the Suite repository’s GitHub Pages settings. If GoDaddy manages the domain’s DNS, add a CNAME with **Name `suite`** and **Value `onemadpunk.github.io`** (no repository path). If the domain uses another company’s nameservers, make the record there instead. Enable HTTPS after GitHub issues its certificate. Do not publish the new address on praiseav.com until it loads and Google sign-in has been tested there. This changes only the Suite website address; it does not move any church’s Firestore records.
 
+## One-time setup for a church administrator
+
+Only one administrator per church uses Firebase Console. Volunteers and congregation members receive a church invitation link and sign in with Google; they do not create Firebase projects. PraiseAV Windows works without Firebase. The Suite's sample mode is for exploration and does not save new changes.
+
+Open the Suite's **Church setup checklist** alongside Firebase Console. The checklist recognises the project ID when you paste the Web app code, provides direct links to that project's pages, and generates security rules automatically after you enter the church name and administrator email.
+
 ## 1. Create the church project
 
 1. Open [Firebase Console](https://console.firebase.google.com/) in the church administrator's Google account.
 2. Create a project for this church. Choose the Spark plan if its limits fit the church. You do not need to enable Analytics for the Suite.
-3. In Project settings, add a Web app. Copy the Firebase web app configuration shown there. The Suite accepts the JavaScript snippet or a JSON object.
-4. Open Authentication, then Sign-in method, and enable Google.
-5. In Authentication settings, add the Suite website's domain to Authorized domains. Use the domain in the address bar, without a path.
-6. Create a Cloud Firestore database. Choose the location that the church wants for its records. Do not put real records into open test-mode rules.
+3. In Project settings → General → Your apps, add a Web app named PraiseAV Suite. Leave Firebase Hosting unchecked. Paste the full code example containing `firebaseConfig` into the Suite checklist. The Firebase SDK is already installed in the Suite, so you do not need to run `npm install firebase`.
+4. Use the checklist's project-specific link to Authentication → Sign-in method. Choose Google, turn on Enable, set the public-facing name, select the church's support email, and save.
+5. Use the checklist's link to Authentication → Settings. Add the Suite website's domain to Authorised domains. Enter only the hostname, without `https://` or a path.
+6. Use the checklist's link to create a Cloud Firestore database. Choose Standard edition, ID `(default)`, a location near the church, and Production mode. London (`europe-west2`) is an option for UK churches. The database location cannot be changed later. Do not enter real records yet.
 
 Firebase project creation is a guided manual step because doing it automatically would require broad control over the church's Google account. The Firebase web app API key is an identifier, not an administrator password; the Firestore rules protect records. Do not share Firebase service-account keys.
 
 ## 2. Install the church's rules
 
-1. On the Suite start page, enter the church name and the Google email of the administrator who created the project.
-2. Paste the Web app configuration.
-3. Click Generate security rules, then Copy rules.
-4. In Firebase Console, open Firestore Database → Rules. Replace the starter rules with the generated rules and publish them.
-5. Back in the Suite, click Connect to church and sign in with the same administrator Google account.
+1. On the Suite start page, enter the church name and the Google email of the administrator who created the project. Paste the Web app configuration if you have not already done so.
+2. The church-specific security rules appear automatically. Click Copy security rules.
+3. In Firebase Console, open Firestore → Rules. Replace the starter rules with the generated rules and publish them.
+4. Tick **I published these rules in Firestore** in the Suite checklist, then click **Connect and sign in** using the same administrator Google account.
 
 The owner email is embedded in the rules. Check it carefully before publishing. If it changes, the Firebase project owner can replace the rules in Firebase Console. Rules are maintained in each church project; when the Suite's rules change in a future release, administrators may need to publish the new version.
 
