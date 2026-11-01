@@ -66,8 +66,18 @@ type ActiveModule =
   | 'groups-giving'
   | 'praise-av';
 
+function defaultModule(session: ChurchSession | null): ActiveModule {
+  if (!session) return 'services';
+  if (session.roles.includes('musician') && !session.roles.some((role) => role === 'planner' || role === 'av' || role === 'admin')) return 'band';
+  if (canRead(session, 'plans')) return 'services';
+  if (canRead(session, 'members')) return 'people';
+  if (canRead(session, 'checkins')) return 'checkins';
+  if (canRead(session, 'groups') || canRead(session, 'donations')) return 'groups-giving';
+  return 'praise-av';
+}
+
 function SuiteWorkspace({ session, onExit }: { session: ChurchSession | null; onExit: () => void }) {
-  const [activeModule, setActiveModule] = useState<ActiveModule>('services');
+  const [activeModule, setActiveModule] = useState<ActiveModule>(() => defaultModule(session));
   const [darkMode, setDarkMode] = useState(true);
   const [activeThemePreset, setActiveThemePreset] = useState<PraiseAVThemePreset>(PRAISEAV_THEME_PRESETS[0]);
   const [dataError, setDataError] = useState('');
@@ -87,6 +97,9 @@ function SuiteWorkspace({ session, onExit }: { session: ChurchSession | null; on
     || (module === 'people' && canRead(session, 'members'))
     || (module === 'checkins' && canRead(session, 'checkins'))
     || (module === 'groups-giving' && (canRead(session, 'groups') || canRead(session, 'donations')));
+  useEffect(() => {
+    if (!moduleAllowed(activeModule)) setActiveModule(defaultModule(session));
+  }, [session, activeModule]);
   const dataReady = [plansReady, songsReady, membersReady, checkinsReady, groupsReady, bookingsReady, donationsReady].every(Boolean);
   const [activePlanId, setActivePlanId] = useState<string>(
     plans[0]?.id || ''
