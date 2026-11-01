@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { toPraiseAVService, wordsFromChordPro } from '../src/utils/praiseavService';
+import { hasSongWords, toPraiseAVService, wordsFromChordPro } from '../src/utils/praiseavService';
 import type { ServicePlan, Song } from '../src/types/church';
 
 const song: Song = {
@@ -37,4 +37,10 @@ test('Missing song words leave a visible operator cue without an unusable song i
   const exported = toPraiseAVService(plan, [{ ...song, chordPro: '' }]);
   assert.equal(exported.items[0].type, 'designed');
   assert.equal(Object.keys(exported.songs).length, 0);
+});
+
+test('Section headings alone are not usable song words', () => {
+  assert.equal(hasSongWords('[Verse 1]\n\n[Chorus]'), false);
+  const exported = toPraiseAVService(plan, [{ ...song, chordPro: '[Verse 1]\n\n[Chorus]' }]);
+  assert.equal(exported.items[0].type, 'designed');
 });

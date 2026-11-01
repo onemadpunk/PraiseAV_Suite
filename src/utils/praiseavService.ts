@@ -26,6 +26,10 @@ export function wordsFromChordPro(chordPro: string): string {
   }).join('\n').trim();
 }
 
+export function hasSongWords(chordPro: string): boolean {
+  return wordsFromChordPro(chordPro).split('\n').some((line) => Boolean(line.trim()) && !section.test(line));
+}
+
 function textBox(text: string) {
   return {
     id: crypto.randomUUID(), type: 'text', x: 200, y: 380, w: 1520, h: 320,
@@ -66,7 +70,7 @@ export function toPraiseAVService(plan: ServicePlan, songs: Song[]): PraiseAVSer
   const items = plan.items.map((item) => {
     if (item.type === 'song' && item.songId) {
       const song = byId.get(item.songId);
-      if (song && wordsFromChordPro(song.chordPro)) {
+      if (song && hasSongWords(song.chordPro)) {
         copies[song.id] = songCopy(song);
         return {
           uid: item.id,
