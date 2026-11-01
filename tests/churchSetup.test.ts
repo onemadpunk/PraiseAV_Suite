@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { parseChurchConnection, parseFirebaseConfigText } from '../src/services/churchFirebase';
+import { canRead, canWrite, parseChurchConnection, parseFirebaseConfigText } from '../src/services/churchFirebase';
+import type { ChurchRole, ChurchSession, DataDomain } from '../src/services/churchFirebase';
 import { parseChurchBackup } from '../src/services/backup';
 import { churchRules } from '../src/services/churchRules';
 
@@ -31,4 +32,20 @@ test('Backup import rejects malformed and duplicate record IDs', () => {
   assert.deepEqual(parseChurchBackup(empty), empty);
   assert.throws(() => parseChurchBackup({ ...empty, songs: [{ id: 'same' }, { id: 'same' }] }));
   assert.throws(() => parseChurchBackup({ ...empty, songs: [{ id: '../other' }] }));
+});
+
+test('client access matrix keeps children, giving and people records in separate roles', () => {
+  const session = (roles: ChurchRole[]) => ({ roles, owner: false }) as ChurchSession;
+  const sensitive: DataDomain[] = ['members', 'checkins', 'donations'];
+  assert.equal(canRead(session(['av']), 'plans'), true);
+  assert.equal(canWrite(session(['av']), 'plans'), false);
+  for (const role of ['av', 'musician', 'member'] as ChurchRole[]) {
+    for (const domain of sensitive) assert.equal(canRead(session([role]), domain), false);
+  }
+  assert.equal(canRead(session(['people']), 'members'), true);
+  assert.equal(canRead(session(['people']), 'checkins'), false);
+  assert.equal(canRead(session(['kids']), 'checkins'), true);
+  assert.equal(canRead(session(['kids']), 'donations'), false);
+  assert.equal(canRead(session(['finance']), 'donations'), true);
+  assert.equal(canWrite(session(['finance']), 'donations'), true);
 });
