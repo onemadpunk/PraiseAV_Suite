@@ -82,7 +82,10 @@ export function ChurchGate({ onReady, onDemo }: { onReady: (session: ChurchSessi
   return (
     <main className="min-h-screen bg-slate-50 dark:bg-[#0B0F19] text-slate-900 dark:text-slate-100 p-6">
       <div className="max-w-2xl mx-auto bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-2xl p-6 space-y-5">
-        <h1 className="text-2xl font-bold">PraiseAV Suite</h1>
+        <h1 className="inline-block">
+          <img className="w-60 max-w-full dark:hidden" src={import.meta.env.BASE_URL + 'branding/suite-primary-light.svg'} alt="PraiseAV Suite" />
+          <img className="hidden w-60 max-w-full dark:block" src={import.meta.env.BASE_URL + 'branding/suite-primary-dark.svg'} alt="PraiseAV Suite" />
+        </h1>
         {connection ? (
           <>
             <p><strong>{connection.churchName}</strong> owns its Firebase project and church records.</p>

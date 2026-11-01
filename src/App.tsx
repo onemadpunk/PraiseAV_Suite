@@ -235,7 +235,8 @@ function SuiteWorkspace({ session, onExit }: { session: ChurchSession | null; on
           }}
           className="text-lg font-bold tracking-tight text-slate-900 dark:text-white whitespace-nowrap shrink-0"
         >
-          PraiseAV Suite
+          <img className="w-44 h-auto dark:hidden" src={import.meta.env.BASE_URL + 'branding/suite-horizontal-light.svg'} alt="PraiseAV Suite" />
+          <img className="hidden w-44 h-auto dark:block" src={import.meta.env.BASE_URL + 'branding/suite-horizontal-dark.svg'} alt="PraiseAV Suite" />
         </a>
 
         {/* Zone 2: 5 concise single-line text navigation links */}
