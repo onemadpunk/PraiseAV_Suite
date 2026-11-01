@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Cloud,
   Download,
@@ -20,6 +20,8 @@ import {
   Users,
 } from 'lucide-react';
 import { CheckInsWorkspace } from './components/CheckInsWorkspace';
+import { ChurchAdminPanel } from './components/ChurchAdminPanel';
+import { ChurchGate } from './components/ChurchGate';
 import { GroupsAndGivingWorkspace } from './components/GroupsAndGivingWorkspace';
 import { PeopleAndRotasWorkspace } from './components/PeopleAndRotasWorkspace';
 import {
@@ -29,6 +31,7 @@ import {
 } from './components/PraseAVBridgeWorkspace';
 import { ServicesWorkspace } from './components/ServicesWorkspace';
 import { SongLibraryWorkspace } from './components/SongLibraryWorkspace';
+import { MusicStandWorkspace } from './components/MusicStandWorkspace';
 import {
   INITIAL_CHECKINS,
   INITIAL_DONATIONS,
@@ -42,144 +45,59 @@ import {
   CheckInChild,
   DonationRecord,
   Member,
-  PraiseAVLiveState,
   RoomBooking,
   ServiceItem,
   ServicePlan,
   SmallGroup,
   Song,
 } from './types/church';
-import { compileServiceItemSlides } from './utils/musicAndAv';
+import { ChurchSession, canRead, canWrite, clearChurchConnection, signOutChurch } from './services/churchFirebase';
+import { useChurchCollection } from './services/useChurchCollection';
+import { LEGACY_STORAGE_KEY, readLegacySnapshot } from './services/legacyData';
+import { parseChurchBackup } from './services/backup';
+import { doc, onSnapshot } from 'firebase/firestore';
 
 type ActiveModule =
   | 'services'
   | 'songs'
+  | 'band'
   | 'people'
   | 'checkins'
   | 'groups-giving'
   | 'praise-av';
 
-const STORAGE_KEY = 'praiseav_suite_zero_cost_db_v1';
-
-export default function App() {
+function SuiteWorkspace({ session, onExit }: { session: ChurchSession | null; onExit: () => void }) {
   const [activeModule, setActiveModule] = useState<ActiveModule>('services');
-  // PraiseAV uses a dark AV operator studio theme by default
-  const [darkMode, setDarkMode] = useState<boolean>(true);
-  const [activeThemePreset, setActiveThemePreset] = useState<PraiseAVThemePreset>(
-    PRAISEAV_THEME_PRESETS[0]
-  );
-
-  const [plans, setPlans] = useState<ServicePlan[]>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed.plans) && parsed.plans.length > 0) return parsed.plans;
-      }
-    } catch {
-      // Fallback to default
-    }
-    return INITIAL_SERVICE_PLANS;
-  });
-
-  const [songs, setSongs] = useState<Song[]>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed.songs) && parsed.songs.length > 0) return parsed.songs;
-      }
-    } catch {
-      // Fallback
-    }
-    return INITIAL_SONGS;
-  });
-
-  const [members, setMembers] = useState<Member[]>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed.members) && parsed.members.length > 0) return parsed.members;
-      }
-    } catch {
-      // Fallback
-    }
-    return INITIAL_MEMBERS;
-  });
-
-  const [childrenList, setChildrenList] = useState<CheckInChild[]>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed.childrenList)) return parsed.childrenList;
-      }
-    } catch {
-      // Fallback
-    }
-    return INITIAL_CHECKINS;
-  });
-
-  const [smallGroups, setSmallGroups] = useState<SmallGroup[]>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed.smallGroups)) return parsed.smallGroups;
-      }
-    } catch {
-      // Fallback
-    }
-    return INITIAL_SMALL_GROUPS;
-  });
-
-  const [roomBookings, setRoomBookings] = useState<RoomBooking[]>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed.roomBookings)) return parsed.roomBookings;
-      }
-    } catch {
-      // Fallback
-    }
-    return INITIAL_ROOM_BOOKINGS;
-  });
-
-  const [donations, setDonations] = useState<DonationRecord[]>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed.donations)) return parsed.donations;
-      }
-    } catch {
-      // Fallback
-    }
-    return INITIAL_DONATIONS;
-  });
-
+  const [darkMode, setDarkMode] = useState(true);
+  const [activeThemePreset, setActiveThemePreset] = useState<PraiseAVThemePreset>(PRAISEAV_THEME_PRESETS[0]);
+  const [dataError, setDataError] = useState('');
+  const [legacy] = useState(() => readLegacySnapshot());
+  const [plans, setPlans, plansReady] = useChurchCollection(session, 'plans', legacy?.plans || INITIAL_SERVICE_PLANS, setDataError);
+  const [songs, setSongs, songsReady] = useChurchCollection(session, 'songs', legacy?.songs || INITIAL_SONGS, setDataError);
+  const [members, setMembers, membersReady] = useChurchCollection(session, 'members', legacy?.members || INITIAL_MEMBERS, setDataError);
+  const [childrenList, setChildrenList, checkinsReady] = useChurchCollection(session, 'checkins', legacy?.childrenList || INITIAL_CHECKINS, setDataError);
+  const [smallGroups, setSmallGroups, groupsReady] = useChurchCollection(session, 'groups', legacy?.smallGroups || INITIAL_SMALL_GROUPS, setDataError);
+  const [roomBookings, setRoomBookings, bookingsReady] = useChurchCollection(session, 'bookings', legacy?.roomBookings || INITIAL_ROOM_BOOKINGS, setDataError);
+  const [donations, setDonations, donationsReady] = useChurchCollection(session, 'donations', legacy?.donations || INITIAL_DONATIONS, setDataError);
+  const [showAdmin, setShowAdmin] = useState(false);
+  const moduleAllowed = (module: ActiveModule) => !session || module === 'praise-av'
+    || (module === 'services' && canRead(session, 'plans'))
+    || (module === 'songs' && canRead(session, 'songs'))
+    || (module === 'band' && canRead(session, 'plans') && canRead(session, 'songs'))
+    || (module === 'people' && canRead(session, 'members'))
+    || (module === 'checkins' && canRead(session, 'checkins'))
+    || (module === 'groups-giving' && (canRead(session, 'groups') || canRead(session, 'donations')));
+  const dataReady = [plansReady, songsReady, membersReady, checkinsReady, groupsReady, bookingsReady, donationsReady].every(Boolean);
   const [activePlanId, setActivePlanId] = useState<string>(
-    plans[0]?.id || 'plan-2026-11-01'
+    plans[0]?.id || ''
   );
 
-  const [liveState, setLiveState] = useState<PraiseAVLiveState>({
-    connected: true,
-    connectionMode: 'broadcast-channel',
-    wsEndpoint: 'ws://127.0.0.1:7890/praise-av',
-    activePlanId: plans[0]?.id || 'plan-2026-11-01',
-    activeItemIndex: 1,
+  const [preview, setPreview] = useState({
+    activeItemIndex: 0,
     activeSlideIndex: 0,
-    blackout: false,
-    clearText: false,
-    logoOverlay: false,
-    stageMessage: '',
-    lastPingTimestamp: '08:55:12',
   });
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
-  const broadcastRef = useRef<BroadcastChannel | null>(null);
 
   // Sync Dark Mode class and PraiseAV custom theme CSS variables on <html>
   useEffect(() => {
@@ -193,62 +111,7 @@ export default function App() {
     root.style.setProperty('--praiseav-secondary', activeThemePreset.secondaryHex);
   }, [darkMode, activeThemePreset]);
 
-  // Persist entire church database locally ($0 hosting cost)
-  useEffect(() => {
-    try {
-      const payload = {
-        plans,
-        songs,
-        members,
-        childrenList,
-        smallGroups,
-        roomBookings,
-        donations,
-      };
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
-    } catch {
-      // Ignore storage quota warnings
-    }
-  }, [plans, songs, members, childrenList, smallGroups, roomBookings, donations]);
-
-  // Initialize BroadcastChannel for PraiseAV Live Bridge
-  useEffect(() => {
-    if (typeof BroadcastChannel !== 'undefined') {
-      const channel = new BroadcastChannel('praise_av_bridge_v1');
-      broadcastRef.current = channel;
-      return () => channel.close();
-    }
-  }, []);
-
   const activePlan = plans.find((p) => p.id === activePlanId) || plans[0];
-
-  const handleUpdateLiveState = (next: Partial<PraiseAVLiveState>) => {
-    setLiveState((prev) => {
-      const merged = { ...prev, ...next };
-      if (broadcastRef.current && activePlan) {
-        const item =
-          activePlan.items[merged.activeItemIndex] || activePlan.items[0];
-        const slides = item ? compileServiceItemSlides(item, songs) : [];
-        broadcastRef.current.postMessage({
-          event: 'PRAISE_AV_SLIDE_TRIGGER',
-          timestamp: new Date().toISOString(),
-          servicePlanId: activePlan.id,
-          serviceTitle: activePlan.title,
-          itemIndex: merged.activeItemIndex,
-          itemTitle: item?.title,
-          slideIndex: merged.activeSlideIndex,
-          currentSlide: slides[merged.activeSlideIndex] || slides[0] || null,
-          nextSlide: slides[merged.activeSlideIndex + 1] || null,
-          displayFlags: {
-            blackout: merged.blackout,
-            clearText: merged.clearText,
-          },
-          congregationAndPreacherAlert: merged.stageMessage || null,
-        });
-      }
-      return merged;
-    });
-  };
 
   const handleUpdatePlan = (updated: ServicePlan) => {
     setPlans((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
@@ -262,7 +125,7 @@ export default function App() {
   const handleAddSongToActiveService = (song: Song, chosenKey: string) => {
     if (!activePlan) return;
     const newItem: ServiceItem = {
-      id: `item-song-${Date.now()}`,
+      id: 'item-song-' + crypto.randomUUID(),
       type: 'song',
       title: song.title,
       subtitle: `Key of ${chosenKey} · ${song.bpm} BPM`,
@@ -295,21 +158,10 @@ export default function App() {
     );
   };
 
-  const handlePageParentOnPraiseAV = (
-    securityCode: string,
-    childName: string,
-    room: string
-  ) => {
-    handleUpdateLiveState({
-      stageMessage: `PARENT PICKUP CODE ${securityCode} (${room})`,
-      lastPingTimestamp: new Date().toLocaleTimeString(),
-    });
-  };
-
   const handleExportFullDatabase = () => {
     const fullBackup = {
       exportedAt: new Date().toISOString(),
-      platform: 'PraiseAV Suite — Zero-Cost Church Management & PraiseAV (praiseav.com) Sync',
+      platform: 'PraiseAV Suite church backup',
       plans,
       songs,
       members,
@@ -331,27 +183,33 @@ export default function App() {
 
   const handleImportDatabaseFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
+    e.target.value = '';
     if (!file) return;
+    if (file.size > 20 * 1024 * 1024) { setDataError('Backup file exceeds the 20 MB import limit.'); return; }
     const reader = new FileReader();
-    reader.onload = (ev) => {
+    reader.onerror = () => setDataError('Could not read the backup file.');
+    reader.onload = () => {
       try {
-        const parsed = JSON.parse(String(ev.target?.result));
-        if (Array.isArray(parsed.plans)) setPlans(parsed.plans);
-        if (Array.isArray(parsed.songs)) setSongs(parsed.songs);
-        if (Array.isArray(parsed.members)) setMembers(parsed.members);
-        if (Array.isArray(parsed.childrenList)) setChildrenList(parsed.childrenList);
-        if (Array.isArray(parsed.smallGroups)) setSmallGroups(parsed.smallGroups);
-        if (Array.isArray(parsed.roomBookings)) setRoomBookings(parsed.roomBookings);
-        if (Array.isArray(parsed.donations)) setDonations(parsed.donations);
-      } catch {
-        // Invalid JSON file
+        const parsed = parseChurchBackup(JSON.parse(String(reader.result)));
+        if (session && !confirm('Restore this backup into ' + session.connection.churchName + '? Records with the same IDs will be replaced, and records missing from the backup will be removed. Download a backup of the current church first.')) return;
+        setPlans(parsed.plans);
+        setSongs(parsed.songs);
+        setMembers(parsed.members);
+        setChildrenList(parsed.childrenList);
+        setSmallGroups(parsed.smallGroups);
+        setRoomBookings(parsed.roomBookings);
+        setDonations(parsed.donations);
+        setDataError('');
+      } catch (failure) {
+        setDataError('Could not restore backup: ' + String(failure));
       }
     };
     reader.readAsText(file);
   };
 
   const handleResetDemoData = () => {
-    localStorage.removeItem(STORAGE_KEY);
+    if (legacy && !confirm('This clears this browser’s older Suite records. Download a backup first if you need them. Continue?')) return;
+    localStorage.removeItem(LEGACY_STORAGE_KEY);
     setPlans(INITIAL_SERVICE_PLANS);
     setSongs(INITIAL_SONGS);
     setMembers(INITIAL_MEMBERS);
@@ -361,6 +219,8 @@ export default function App() {
     setDonations(INITIAL_DONATIONS);
     setActivePlanId(INITIAL_SERVICE_PLANS[0].id);
   };
+
+  if (session && !dataReady) return <main className="p-8">Opening {session.connection.churchName}…</main>;
 
   return (
     <div className="min-h-screen flex flex-col bg-slate-50 dark:bg-[#0B0F19] text-slate-900 dark:text-slate-100">
@@ -402,6 +262,10 @@ export default function App() {
           >
             Songs
           </button>
+          <button type="button" onClick={() => setActiveModule('band')}
+            className={activeModule === 'band' ? 'text-sky-600 dark:text-sky-400 underline font-semibold' : 'hover:text-slate-900 dark:hover:text-white'}>
+            Band stand
+          </button>
           <button
             type="button"
             onClick={() => setActiveModule('people')}
@@ -439,15 +303,18 @@ export default function App() {
 
         {/* Zone 3: 1 primary action */}
         <div className="flex items-center gap-3 shrink-0">
+          <a className="text-xs underline" href="https://github.com/onemadpunk/PraiseAV_Suite/blob/main/docs/workflows.md" target="_blank" rel="noreferrer">Help</a>
+          {session && (session.owner || session.roles.includes('admin')) && <button type="button" className="px-3 py-2 text-xs border rounded-lg" onClick={() => setShowAdmin(true)}>Church access</button>}
           <button
             type="button"
             onClick={() => setActiveModule('praise-av')}
             className="px-4 py-2 text-xs font-semibold text-white bg-sky-600 rounded-lg hover:bg-sky-500 transition-colors whitespace-nowrap shrink-0"
           >
-            PraiseAV & Drive Sync
+            PraiseAV export
           </button>
         </div>
       </header>
+      {dataError && <div role="alert" className="px-6 py-2 bg-red-100 text-red-800 text-sm">Could not save or load church data: {dataError} <button className="underline ml-2" onClick={() => setDataError('')}>Dismiss</button></div>}
 
       {/* Workspace Body: Left Sidebar (260px) + Main Content Viewport */}
       <div className="flex-1 flex flex-col lg:flex-row">
@@ -491,6 +358,9 @@ export default function App() {
                   <span className="font-mono text-[11px] text-slate-400">{songs.length}</span>
                 </button>
 
+                <button type="button" onClick={() => setActiveModule('band')} className="w-full text-left px-3 py-2 text-xs font-medium rounded-lg text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800">
+                  Band stand
+                </button>
                 <button
                   type="button"
                   onClick={() => setActiveModule('people')}
@@ -555,10 +425,10 @@ export default function App() {
                 >
                   <span className="inline-flex items-center gap-2.5">
                     <Cloud className="w-4 h-4" />
-                    PraiseAV & Google Drive
+                    PraiseAV export
                   </span>
                   <span className="font-mono text-[11px] text-sky-600 dark:text-sky-400">
-                    Live
+                    File
                   </span>
                 </button>
               </div>
@@ -568,7 +438,7 @@ export default function App() {
             {activePlan && (
               <div className="p-3.5 bg-slate-50 dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-800 rounded-xl space-y-2">
                 <div className="flex items-center justify-between text-[11px] font-semibold text-slate-700 dark:text-slate-300">
-                  <span>Active PraiseAV Cue</span>
+                  <span>Selected Suite cue</span>
                   <a
                     href="https://praiseav.com/"
                     target="_blank"
@@ -580,18 +450,18 @@ export default function App() {
                   </a>
                 </div>
                 <div className="text-xs font-bold text-slate-900 dark:text-slate-100 truncate">
-                  {activePlan.items[liveState.activeItemIndex]?.title ||
+                  {activePlan.items[preview.activeItemIndex]?.title ||
                     activePlan.items[0]?.title}
                 </div>
                 <div className="text-[11px] text-slate-500 font-mono tabular-nums">
-                  Slide {liveState.activeSlideIndex + 1} · {activePlan.date}
+                  Slide {preview.activeSlideIndex + 1} · {activePlan.date}
                 </div>
                 <button
                   type="button"
                   onClick={() => setActiveModule('praise-av')}
                   className="w-full py-1.5 text-xs font-semibold text-sky-600 dark:text-sky-400 bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800"
                 >
-                  Open PraiseAV & Drive →
+                  Open export guide →
                 </button>
               </div>
             )}
@@ -600,26 +470,26 @@ export default function App() {
           {/* Zero-Cost Local Storage & Portability Controls */}
           <div className="pt-4 border-t border-slate-200 dark:border-slate-800 space-y-2">
             <div className="px-1 text-[11px] font-semibold text-slate-400 dark:text-slate-500">
-              $0 Local + Drive Sync & Theme
+              Church data and appearance
             </div>
 
-            <button
+            {(!session || session.owner || session.roles.includes('admin')) && <button
               type="button"
               onClick={handleExportFullDatabase}
               className="w-full flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
             >
               <Download className="w-3.5 h-3.5" />
-              Backup Church DB (.json)
-            </button>
+              Download church backup (.json)
+            </button>}
 
-            <button
+            {(!session || session.owner || session.roles.includes('admin')) && <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
               className="w-full flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
             >
               <Upload className="w-3.5 h-3.5" />
-              Restore / Sync DB File
-            </button>
+              Restore backup file
+            </button>}
             <input
               ref={fileInputRef}
               type="file"
@@ -647,20 +517,22 @@ export default function App() {
                 )}
               </button>
 
-              <button
+              {!session && <button
                 type="button"
                 onClick={handleResetDemoData}
-                title="Reset to default sample church data"
+                title="Reset local preview data (download a backup first)"
                 className="p-1.5 text-slate-500 hover:text-slate-900 dark:hover:text-slate-100 bg-slate-100 dark:bg-slate-800 rounded-lg"
               >
                 <RotateCcw className="w-3.5 h-3.5" />
-              </button>
+              </button>}
             </div>
+            <button className="text-xs underline px-3 py-1" onClick={onExit}>{session ? 'Sign out / switch church' : 'Leave sample church'}</button>
           </div>
         </aside>
 
         {/* Main Content Viewport */}
         <main className="flex-1 p-6 lg:p-8 max-w-[1440px] w-full mx-auto">
+          {!moduleAllowed(activeModule) ? <p role="status">Your church role does not include this area. Ask a church administrator if you need access.</p> : <>
           {activeModule === 'services' && (
             <ServicesWorkspace
               plans={plans}
@@ -672,12 +544,7 @@ export default function App() {
               members={members}
               onPushItemToLiveAV={(planId, itemIdx, slideIdx = 0) => {
                 setActivePlanId(planId);
-                handleUpdateLiveState({
-                  activePlanId: planId,
-                  activeItemIndex: itemIdx,
-                  activeSlideIndex: slideIdx,
-                  lastPingTimestamp: new Date().toLocaleTimeString(),
-                });
+                setPreview({ activeItemIndex: itemIdx, activeSlideIndex: slideIdx });
               }}
               onOpenPraiseAVConsole={() => setActiveModule('praise-av')}
             />
@@ -696,6 +563,8 @@ export default function App() {
             />
           )}
 
+          {activeModule === 'band' && <MusicStandWorkspace plans={plans} songs={songs} />}
+
           {activeModule === 'people' && (
             <PeopleAndRotasWorkspace
               members={members}
@@ -713,7 +582,6 @@ export default function App() {
               childrenList={childrenList}
               onToggleCheckIn={handleToggleChildCheckIn}
               onAddChild={(c) => setChildrenList((prev) => [c, ...prev])}
-              onPageParentOnPraseAV={handlePageParentOnPraiseAV}
             />
           )}
 
@@ -724,25 +592,56 @@ export default function App() {
               roomBookings={roomBookings}
               onAddRoomBooking={(rb) => setRoomBookings((prev) => [rb, ...prev])}
               donations={donations}
+              canSeeGroups={!session || canRead(session, 'groups')}
+              canSeeFinance={!session || canRead(session, 'donations')}
+              canEditGroups={!session || canWrite(session, 'groups')}
+              canEditFinance={!session || canWrite(session, 'donations')}
               onAddDonation={(don) => setDonations((prev) => [don, ...prev])}
             />
           )}
 
-          {activeModule === 'praise-av' && activePlan && (
+          {activeModule === 'praise-av' && (
             <PraseAVBridgeWorkspace
               activePlan={activePlan}
               songs={songs}
-              liveState={liveState}
-              onUpdateLiveState={handleUpdateLiveState}
               activeThemePreset={activeThemePreset}
               onSelectThemePreset={setActiveThemePreset}
-              onImportSongsFromDriveJson={(imported) =>
-                setSongs((prev) => [...imported, ...prev])
-              }
             />
           )}
+          </>}
         </main>
       </div>
+      {showAdmin && session && <ChurchAdminPanel session={session} onClose={() => setShowAdmin(false)} />}
     </div>
   );
+}
+
+export default function App() {
+  const [session, setSession] = useState<ChurchSession | null>(null);
+  const [demo, setDemo] = useState(false);
+  const onReady = useCallback((ready: ChurchSession) => setSession(ready), []);
+  useEffect(() => {
+    if (!session || session.owner) return;
+    return onSnapshot(doc(session.db, 'memberships', session.user.uid), (snapshot) => {
+      const allowed = new Set(['admin', 'planner', 'av', 'musician', 'people', 'kids', 'finance', 'member']);
+      const roles = Array.isArray(snapshot.data()?.roles)
+        ? snapshot.data()!.roles.filter((role: unknown) => typeof role === 'string' && allowed.has(role))
+        : [];
+      if (!snapshot.exists() || !roles.length) {
+        setSession(null);
+        return;
+      }
+      if (roles.join(',') !== session.roles.join(',')) setSession({ ...session, roles });
+    }, () => setSession(null));
+  }, [session]);
+  const onExit = useCallback(() => {
+    if (session) {
+      void signOutChurch(session.connection);
+      clearChurchConnection();
+    }
+    setSession(null);
+    setDemo(false);
+  }, [session]);
+  if (!session && !demo) return <ChurchGate onReady={onReady} onDemo={() => setDemo(true)} />;
+  return <SuiteWorkspace session={session} onExit={onExit} />;
 }

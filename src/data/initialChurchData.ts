@@ -20,29 +20,7 @@ export const INITIAL_SONGS: Song[] = [
     themes: ['Christ', 'Foundation', 'Trust', 'Grace'],
     arrangement: ['Intro', 'Verse 1', 'Chorus', 'Verse 2', 'Chorus', 'Bridge', 'Chorus'],
     lastScheduled: '2026-10-25',
-    chordPro: `[Verse 1]
-[C]My hope is built on nothing less
-[F]Than Jesus' blood and [G]righteousness
-[Am]I dare not trust the [F]sweetest frame
-[C/E]But wholly [G]trust in [C]Jesus' Name
-
-[Chorus]
-Christ a[F]lone, [Am]Corner[G]stone
-Weak made [C/E]strong in the [F]Saviour's [Am]love [G]
-Through the [C]storm, [F]He is [Am]Lord
-[G]Lord of [C]all
-
-[Verse 2]
-[C]When darkness seems to hide His face
-[F]I rest on His un[G]changing grace
-[Am]In every high and [F]stormy gale
-[C/E]My anchor [G]holds with[C]in the veil
-
-[Bridge]
-[Am]When He shall [F]come with [G]trumpet sound
-[Am]Oh may I [F]then in [G]Him be found
-[C/E]Dressed in His [F]righteous[Am]ness a[G]lone
-Faultless [F]stand be[G]fore the [C]throne`,
+    chordPro: '',
   },
   {
     id: 'song-2',
@@ -55,29 +33,7 @@ Faultless [F]stand be[G]fore the [C]throne`,
     themes: ['Devotion', 'Holiness', 'Worship', 'Surrender'],
     arrangement: ['Verse 1', 'Verse 2', 'Chorus', 'Bridge', 'Chorus'],
     lastScheduled: '2026-10-18',
-    chordPro: `[Verse 1]
-[G]Worthy of ev'ry [C]song we could ever sing
-[G/B]Worthy of all the [C]praise we could ever bring
-[G]Worthy of ev'ry [C]breath we could ever breathe
-We live for [Am]You, we live for [C]You
-
-[Verse 2]
-[G]Jesus the name a[C]bove ev'ry other name
-[G/B]Jesus the only [C]one who could ever save
-[G]Worthy of ev'ry [C]breath we could ever breathe
-We live for [Am]You, we live for [C]You
-
-[Chorus]
-[C]Holy, there is no one [Am]like You
-There is none be[G/B]side You, open up my [Em]eyes in wonder
-[C]Show me who You [Am]are and fill me
-With Your [G/B]heart and lead me in Your [Em]love to those around me
-
-[Bridge]
-[C]I will build my [D]life upon Your [Em]love
-It is a [G/B]firm foundation
-[C]I will put my [D]trust in You a[Em]lone
-And I will [G/B]not be shaken`,
+    chordPro: '',
   },
   {
     id: 'song-3',
@@ -90,23 +46,7 @@ And I will [G/B]not be shaken`,
     themes: ['Praise', 'Gratitude', 'Benediction', 'Morning'],
     arrangement: ['Chorus', 'Verse 1', 'Chorus', 'Verse 2', 'Chorus', 'Verse 3', 'Chorus'],
     lastScheduled: '2026-10-11',
-    chordPro: `[Chorus]
-Bless the [C]Lord, O my [G]soul, [D/F#]O my [Em]soul
-[C]Worship His [G]holy [Dsus4]name [D]
-Sing like [C]never be[Em]fore, [C]O my [D]soul [Em]
-I'll [C]worship Your [D]holy [G]name
-
-[Verse 1]
-The [C]sun comes [G]up, it's a [D]new day [Em]dawning
-[C]It's time to [G]sing Your [D]song a[Em]gain
-What[C]ever may [G]pass and what[D]ever lies be[Em]fore me
-[C]Let me be [G]singing when the [Dsus4]evening [D]comes [G]
-
-[Verse 2]
-You're [C]rich in [G]love and You're [D]slow to [Em]anger
-Your [C]name is [G]great and Your [D]heart is [Em]kind
-For [C]all Your [G]goodness I will [D]keep on [Em]singing
-[C]Ten thousand [G]reasons for my [Dsus4]heart to [D]find [G]`,
+    chordPro: '',
   },
   {
     id: 'song-4',
@@ -119,25 +59,7 @@ For [C]all Your [G]goodness I will [D]keep on [Em]singing
     themes: ['Gospel', 'Cross', 'Resurrection', 'Assurance'],
     arrangement: ['Verse 1', 'Verse 2', 'Verse 3', 'Verse 4'],
     lastScheduled: '2026-10-04',
-    chordPro: `[Verse 1]
-In [G]Christ a[D]lone my [Em]hope is [A]found
-He is my [G]light, my [A]strength, my [D]song
-This Corner[G]stone, this [D]solid [Em]Ground
-Firm through the [G]fiercest [A]drought and [D]storm
-What heights of [G]love, what [D]depths of [A]peace
-When fears are [G]stilled, when [Bm]strivings [A]cease
-My Comfor[G]ter, my [D]All in [Em]All
-Here in the [G]love of [A]Christ I [D]stand
-
-[Verse 2]
-In [G]Christ a[D]lone Who [Em]took on [A]flesh
-Fullness of [G]God in [A]helpless [D]babe
-This gift of [G]love and [D]righteous[Em]ness
-Scorned by the [G]ones He [A]came to [D]save
-Till on that [G]cross as [D]Jesus [A]died
-The wrath of [G]God was [Bm]satis[A]fied
-For every [G]sin on [D]Him was [Em]laid
-Here in the [G]death of [A]Christ I [D]live`,
+    chordPro: '',
   },
   {
     id: 'song-5',
@@ -150,24 +72,7 @@ Here in the [G]death of [A]Christ I [D]live`,
     themes: ['Faithfulness', 'Testimony', 'Mercy', 'Goodness'],
     arrangement: ['Verse 1', 'Chorus', 'Verse 2', 'Chorus', 'Bridge', 'Chorus'],
     lastScheduled: '2026-10-25',
-    chordPro: `[Verse 1]
-I love You [A]Lord, oh Your [D]mercy never [A]fails me
-[E/G#]All my [F#m]days, I've been [D]held in Your [E]hands
-From the moment that I [F#m]wake up, [D]until I lay my [A]head [E/G#] [F#m]
-Oh I will [D]sing of the [E]goodness of [A]God
-
-[Chorus]
-[D]All my life You have been [A]faithful
-[D]All my life You have been [A]so, so [E]good
-With every [D]breath that I am [A]able [E/G#] [F#m]
-Oh I will [D]sing of the [E]goodness of [A]God
-
-[Bridge]
-[A/C#]Your goodness is [D]running after, it's [E]running after [A]me
-[A/C#]Your goodness is [D]running after, it's [E]running after [A]me
-With my [A/C#]life laid [D]down, I'm sur[E]rendered [F#m]now
-I give You [D]every[E]thing
-[A/C#]Your goodness is [D]running after, it's [E]running after [A]me`,
+    chordPro: '',
   },
   {
     id: 'song-6',
@@ -361,7 +266,6 @@ export const INITIAL_SERVICE_PLANS: ServicePlan[] = [
     date: '2026-11-01',
     serviceTimes: ['09:00', '11:00'],
     targetDurationMinutes: 75,
-    lastSyncedToPraiseAV: '2026-11-01T08:42:00Z',
     items: [
       {
         id: 'item-1',
@@ -420,8 +324,7 @@ export const INITIAL_SERVICE_PLANS: ServicePlan[] = [
         leader: 'Naomi Chen',
         scriptureRef: '1 Peter 2:4–10',
         scriptureTranslation: 'NIV',
-        scriptureText:
-          'As you come to him, the living Stone—rejected by humans but chosen by God and precious to him—you also, like living stones, are being built into a spiritual house to be a holy priesthood, offering spiritual sacrifices acceptable to God through Jesus Christ. For in Scripture it says: "See, I lay a stone in Zion, a chosen and precious cornerstone, and the one who trusts in him will never be put to shame." But you are a chosen people, a royal priesthood, a holy nation, God\'s special possession, that you may declare the praises of him who called you out of darkness into his wonderful light. Once you were not a people, but now you are the people of God; once you had not received mercy, but now you have received mercy.',
+        scriptureText: '',
         stageNotes: 'Advance Praise AV NIV scripture slides evenly as Naomi reads from lectern.',
         audioCue: 'Lectern Mic Unmute',
         lightingCue: 'Preset 5: Center Lectern Spot',
@@ -617,8 +520,7 @@ export const INITIAL_SERVICE_PLANS: ServicePlan[] = [
         leader: 'Rev. David Alistair',
         scriptureRef: 'Psalm 46:1–11',
         scriptureTranslation: 'NIV',
-        scriptureText:
-          'God is our refuge and strength, an ever-present help in trouble. Therefore we will not fear, though the earth give way and the mountains fall into the heart of the sea. He makes wars cease to the ends of the earth. He breaks the bow and shatters the spear; he burns the shields with fire. He says, "Be still, and know that I am God; I will be exalted among the nations, I will be exalted in the earth." The Lord Almighty is with us; the God of Jacob is our fortress.',
+        scriptureText: '',
         stageNotes: 'Advance slide on "He makes wars cease".',
         audioCue: 'Lectern Mic',
         lightingCue: 'Sermon Key',

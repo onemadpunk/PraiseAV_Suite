@@ -1,4 +1,5 @@
 import { PraiseSlide, ServiceItem, ServicePlan, Song } from '../types/church';
+import { arrangeChordPro } from './songArrangement';
 
 export const CHROMATIC_SHARP = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 export const CHROMATIC_FLAT = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'];
@@ -165,7 +166,7 @@ export function compileServiceItemSlides(item: ServiceItem, songs: Song[]): Prai
   if (item.type === 'song' && item.songId) {
     const foundSong = songs.find((s) => s.id === item.songId);
     if (foundSong) {
-      return compileSongToPraiseSlides(foundSong, item.musicalKey || foundSong.defaultKey);
+      return compileSongToPraiseSlides({ ...foundSong, chordPro: arrangeChordPro(foundSong.chordPro, item.arrangementOverride || foundSong.arrangement) }, item.musicalKey || foundSong.defaultKey);
     }
   }
 

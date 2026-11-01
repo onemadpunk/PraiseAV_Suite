@@ -74,7 +74,7 @@ export const SongLibraryWorkspace: React.FC<SongLibraryWorkspaceProps> = ({
     e.preventDefault();
     if (!newTitle.trim()) return;
     const created: Song = {
-      id: `song-${Date.now()}`,
+      id: 'song-' + crypto.randomUUID(),
       title: newTitle.trim(),
       author: newAuthor.trim() || 'Congregational Arrangement',
       ccliNumber: newCcli.trim() || 'Public Domain',
@@ -98,22 +98,23 @@ export const SongLibraryWorkspace: React.FC<SongLibraryWorkspaceProps> = ({
   };
 
   const handleExportSongForPraiseAV = (song: Song) => {
-    const slides = compileSongToPraiseSlides(song, previewKey);
-    const payload = {
-      schema: 'PraiseAV.SongItem.v1',
-      song: {
-        ...song,
-        activeKey: previewKey,
-      },
-      slides,
-    };
-    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+    const lines = song.chordPro.replace(/\r\n?/g, '\n').split('\n').map((line) =>
+      /^\s*\[(?:Verse|Chorus|Bridge|Intro|Outro|Tag|Pre-Chorus)[^\]]*\]\s*$/i.test(line)
+        ? line.trim().slice(1, -1)
+        : line.replace(/\[[^\]]+\]/g, '')
+    );
+    if (!lines.join(' ').trim()) {
+      alert('Add lyrics you have permission to use before exporting this song.');
+      return;
+    }
+    const text = [song.title, '', ...lines, '', song.author, 'CCLI Song # ' + (song.ccliNumber || 'none'), ''].join('\n');
+    const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `${song.title.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-${previewKey}.praiseav-song.json`;
+    a.download = song.title.toLowerCase().replace(/[^a-z0-9]+/g, '-') + '.txt';
     a.click();
-    URL.revokeObjectURL(url);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
   };
 
   const transposedText = selectedSong
@@ -128,10 +129,10 @@ export const SongLibraryWorkspace: React.FC<SongLibraryWorkspaceProps> = ({
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-5 border-b border-slate-200 dark:border-slate-800">
         <div>
           <h1 className="text-xl font-bold tracking-tight text-slate-900 dark:text-slate-100">
-            Song Library, ChordPro Transposer & Praise AV Slide Studio
+            Song Library and ChordPro
           </h1>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-            Maintain lyrics and chords once — automatically compile 16:9 sanctuary slides, livestream lower-thirds, and band chord charts in any key
+            Maintain church-licensed lyrics and chords, preview slides, and prepare charts in the key your musicians need.
           </p>
         </div>
         <button

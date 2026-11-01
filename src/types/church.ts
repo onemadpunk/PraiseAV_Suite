@@ -27,6 +27,7 @@ export interface ServiceItem {
   leader: string;
   songId?: string;
   musicalKey?: string;
+  arrangementOverride?: string[]; // This service only; repeat sections without changing the library song.
   scriptureRef?: string;
   scriptureTranslation?: 'NIV' | 'ESV' | 'KJV' | 'NLT';
   scriptureText?: string;
@@ -61,7 +62,6 @@ export interface ServicePlan {
   targetDurationMinutes: number;
   items: ServiceItem[];
   rota: RotaAssignment[];
-  lastSyncedToPraiseAV?: string;
 }
 
 export interface Song {
@@ -103,6 +103,7 @@ export interface CheckInChild {
   guardianPhone: string;
   medicalAlert: string;
   securityCode: string;
+  pagerCode?: string; // Public page reference, never used to release a child.
   checkedInAt: string | null;
   checkedOutAt: string | null;
   serviceDate: string;
@@ -144,18 +145,4 @@ export interface DonationRecord {
   giftAidEligible: boolean;
   date: string;
   reference: string;
-}
-
-export interface PraiseAVLiveState {
-  connected: boolean;
-  connectionMode: 'broadcast-channel' | 'websocket-lan' | 'bundle-file';
-  wsEndpoint: string;
-  activePlanId: string;
-  activeItemIndex: number;
-  activeSlideIndex: number;
-  blackout: boolean;
-  clearText: boolean;
-  logoOverlay: boolean;
-  stageMessage: string;
-  lastPingTimestamp: string;
 }

@@ -14,14 +14,12 @@ interface CheckInsWorkspaceProps {
   childrenList: CheckInChild[];
   onToggleCheckIn: (childId: string) => void;
   onAddChild: (child: CheckInChild) => void;
-  onPageParentOnPraseAV: (securityCode: string, childName: string, room: string) => void;
 }
 
 export const CheckInsWorkspace: React.FC<CheckInsWorkspaceProps> = ({
   childrenList,
   onToggleCheckIn,
   onAddChild,
-  onPageParentOnPraseAV,
 }) => {
   const [roomFilter, setRoomFilter] = useState<string>('ALL');
   const [selectedBadgeChildId, setSelectedBadgeChildId] = useState<string>(
@@ -48,7 +46,11 @@ export const CheckInsWorkspace: React.FC<CheckInsWorkspaceProps> = ({
   const handleRegisterSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!childName.trim()) return;
-    const randomCode = `K-${Math.floor(1000 + Math.random() * 9000)}`;
+    const randomNumber = () => crypto.getRandomValues(new Uint32Array(1))[0] % 9000 + 1000;
+    let randomCode = 'K-' + randomNumber();
+    while (childrenList.some((child) => child.securityCode === randomCode)) randomCode = 'K-' + randomNumber();
+    let pagerCode = 'P-' + randomNumber();
+    while (childrenList.some((child) => child.pagerCode === pagerCode)) pagerCode = 'P-' + randomNumber();
     const roomMap: Record<CheckInChild['ageGroup'], string> = {
       'Nursery (0–2)': 'Kids Wing — Crèche A',
       'Sparks (3–5)': 'Kids Wing — Room B',
@@ -57,7 +59,7 @@ export const CheckInsWorkspace: React.FC<CheckInsWorkspaceProps> = ({
     };
     const nowHHMM = new Date().toTimeString().slice(0, 5);
     const created: CheckInChild = {
-      id: `chk-${Date.now()}`,
+      id: 'chk-' + crypto.randomUUID(),
       childName: childName.trim(),
       ageGroup,
       room: roomMap[ageGroup],
@@ -65,9 +67,10 @@ export const CheckInsWorkspace: React.FC<CheckInsWorkspaceProps> = ({
       guardianPhone: guardianPhone.trim() || '+44 7700 900000',
       medicalAlert: medicalAlert.trim() || 'None',
       securityCode: randomCode,
+      pagerCode,
       checkedInAt: nowHHMM,
       checkedOutAt: null,
-      serviceDate: '2026-11-01',
+      serviceDate: new Date().toLocaleDateString('en-CA'),
     };
     onAddChild(created);
     setSelectedBadgeChildId(created.id);
@@ -81,10 +84,10 @@ export const CheckInsWorkspace: React.FC<CheckInsWorkspaceProps> = ({
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-5 border-b border-slate-200 dark:border-slate-800">
         <div>
           <div className="text-xs text-slate-500 dark:text-slate-400 font-mono tabular-nums">
-            Sunday Safeguarding Kiosk · Active Checked-In: {checkedInCount} / {childrenList.length} Registered
+            Kids check-in desk · Active Checked-In: {checkedInCount} / {childrenList.length} Registered
           </div>
           <h1 className="text-xl font-bold tracking-tight text-slate-900 dark:text-slate-100 mt-1">
-            Kids & Youth Check-Ins, Security Pickup Codes & Praise AV Parent Alert
+            Kids & Youth Check-Ins
           </h1>
         </div>
 
@@ -101,9 +104,10 @@ export const CheckInsWorkspace: React.FC<CheckInsWorkspaceProps> = ({
       {pagedCodeAlert && (
         <div className="p-3.5 bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-800 rounded-lg flex items-center justify-between text-xs text-indigo-900 dark:text-indigo-200">
           <span>
-            <strong>Sent to Praise AV Congregation & Stage Screen:</strong> Parent Pickup Code{' '}
-            <code className="font-mono font-bold">{pagedCodeAlert}</code> is now displayed on the projector overlay.
+            <strong>Public page prepared (not sent to PraiseAV):</strong> Pager reference{' '}
+            <code className="font-mono font-bold">{pagedCodeAlert}</code> can be copied into a public PraiseAV alert. Verify the private pickup code at collection.
           </span>
+          <button type="button" onClick={() => navigator.clipboard.writeText(pagedCodeAlert)}>Copy alert</button>
           <button
             type="button"
             onClick={() => setPagedCodeAlert(null)}
@@ -292,18 +296,14 @@ export const CheckInsWorkspace: React.FC<CheckInsWorkspaceProps> = ({
                           <button
                             type="button"
                             onClick={() => {
-                              onPageParentOnPraseAV(
-                                child.securityCode,
-                                child.childName,
-                                child.room
-                              );
-                              setPagedCodeAlert(child.securityCode);
+                              const message = child.pagerCode ? 'Parent or guardian ' + child.pagerCode + ', please come to the kids desk.' : 'Parent or guardian needed at the kids desk.';
+                              setPagedCodeAlert(message);
                             }}
-                            title="Display Security Code on Praise AV Congregation Screen"
+                            title="Prepare public pager message"
                             className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-medium text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/60 rounded hover:bg-indigo-100"
                           >
                             <Radio className="w-3 h-3" />
-                            Page Parent on AV
+                            Prepare parent page
                           </button>
 
                           <button

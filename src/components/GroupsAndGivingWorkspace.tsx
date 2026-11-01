@@ -7,6 +7,7 @@ import {
   Users,
 } from 'lucide-react';
 import { DonationRecord, RoomBooking, SmallGroup } from '../types/church';
+import { csvCell } from '../utils/csv';
 
 interface GroupsAndGivingWorkspaceProps {
   smallGroups: SmallGroup[];
@@ -15,6 +16,10 @@ interface GroupsAndGivingWorkspaceProps {
   onAddRoomBooking: (rb: RoomBooking) => void;
   donations: DonationRecord[];
   onAddDonation: (don: DonationRecord) => void;
+  canSeeGroups: boolean;
+  canSeeFinance: boolean;
+  canEditGroups: boolean;
+  canEditFinance: boolean;
 }
 
 export const GroupsAndGivingWorkspace: React.FC<GroupsAndGivingWorkspaceProps> = ({
@@ -24,8 +29,12 @@ export const GroupsAndGivingWorkspace: React.FC<GroupsAndGivingWorkspaceProps> =
   onAddRoomBooking,
   donations,
   onAddDonation,
+  canSeeGroups,
+  canSeeFinance,
+  canEditGroups,
+  canEditFinance,
 }) => {
-  const [sectionView, setSectionView] = useState<'groups-rooms' | 'giving'>('groups-rooms');
+  const [sectionView, setSectionView] = useState<'groups-rooms' | 'giving'>(canSeeGroups ? 'groups-rooms' : 'giving');
   const [showAddGroup, setShowAddGroup] = useState(false);
   const [showAddBooking, setShowAddBooking] = useState(false);
   const [showAddDonation, setShowAddDonation] = useState(false);
@@ -67,7 +76,7 @@ export const GroupsAndGivingWorkspace: React.FC<GroupsAndGivingWorkspaceProps> =
     e.preventDefault();
     if (!groupName.trim()) return;
     onAddSmallGroup({
-      id: `sg-${Date.now()}`,
+      id: 'sg-' + crypto.randomUUID(),
       name: groupName.trim(),
       category: groupCategory,
       leaderName: groupLeader.trim() || 'Ministry Leader',
@@ -103,7 +112,7 @@ export const GroupsAndGivingWorkspace: React.FC<GroupsAndGivingWorkspaceProps> =
     }
 
     onAddRoomBooking({
-      id: `rb-${Date.now()}`,
+      id: 'rb-' + crypto.randomUUID(),
       roomName,
       eventTitle: eventTitle.trim(),
       date: eventDate,
@@ -121,7 +130,7 @@ export const GroupsAndGivingWorkspace: React.FC<GroupsAndGivingWorkspaceProps> =
     e.preventDefault();
     if (!donorName.trim() || amount <= 0) return;
     onAddDonation({
-      id: `don-${Date.now()}`,
+      id: 'don-' + crypto.randomUUID(),
       donorName: donorName.trim(),
       household: donorName.trim(),
       amount,
@@ -148,22 +157,22 @@ export const GroupsAndGivingWorkspace: React.FC<GroupsAndGivingWorkspaceProps> =
     ];
     const rows = donations.map((d) => [
       d.date,
-      `"${d.donorName}"`,
-      `"${d.fund}"`,
-      `"${d.method}"`,
+      d.donorName,
+      d.fund,
+      d.method,
       d.amount.toFixed(2),
       d.giftAidEligible ? 'YES' : 'NO',
       d.giftAidEligible ? (d.amount * 0.25).toFixed(2) : '0.00',
       d.reference,
     ]);
-    const csv = [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
-    const blob = new Blob([csv], { type: 'text/csv' });
+    const csv = [headers.map(csvCell).join(','), ...rows.map((r) => r.map(csvCell).join(','))].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = 'prase-suite-giving-giftaid-statement.csv';
+    a.download = 'praiseav-suite-giving-review.csv';
     a.click();
-    URL.revokeObjectURL(url);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
   };
 
   return (
@@ -171,15 +180,15 @@ export const GroupsAndGivingWorkspace: React.FC<GroupsAndGivingWorkspaceProps> =
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-5 border-b border-slate-200 dark:border-slate-800">
         <div>
           <h1 className="text-xl font-bold tracking-tight text-slate-900 dark:text-slate-100">
-            Small Groups, Facility Calendar & Zero-Fee Giving Ledger
+            Small Groups, Room Bookings and Giving Records
           </h1>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-            Coordinate midweek discipleship groups, prevent sanctuary room clashes, and log Gift Aid statements with 0% platform commission
+            Coordinate groups and rooms. Finance staff can record giving for review.
           </p>
         </div>
 
         <div className="flex items-center gap-1 p-1 bg-slate-100 dark:bg-slate-800 rounded-lg">
-          <button
+          {canSeeGroups && <button
             type="button"
             onClick={() => setSectionView('groups-rooms')}
             className={`px-3.5 py-1.5 text-xs font-medium rounded-md transition-colors whitespace-nowrap shrink-0 ${
@@ -189,8 +198,8 @@ export const GroupsAndGivingWorkspace: React.FC<GroupsAndGivingWorkspaceProps> =
             }`}
           >
             Small Groups & Room Calendar
-          </button>
-          <button
+          </button>}
+          {canSeeFinance && <button
             type="button"
             onClick={() => setSectionView('giving')}
             className={`px-3.5 py-1.5 text-xs font-medium rounded-md transition-colors whitespace-nowrap shrink-0 ${
@@ -199,12 +208,12 @@ export const GroupsAndGivingWorkspace: React.FC<GroupsAndGivingWorkspaceProps> =
                 : 'text-slate-600 dark:text-slate-400'
             }`}
           >
-            Giving & Gift Aid Ledger
-          </button>
+            Giving Records
+          </button>}
         </div>
       </div>
 
-      {sectionView === 'groups-rooms' ? (
+      {sectionView === 'groups-rooms' && canSeeGroups ? (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
           {/* Small Groups Directory */}
           <div className="lg:col-span-6 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden">
@@ -217,17 +226,17 @@ export const GroupsAndGivingWorkspace: React.FC<GroupsAndGivingWorkspaceProps> =
                   Home groups, youth tables, and courses
                 </p>
               </div>
-              <button
+              {canEditGroups && <button
                 type="button"
                 onClick={() => setShowAddGroup(!showAddGroup)}
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/50 rounded-lg"
               >
                 <Plus className="w-3.5 h-3.5" />
                 New Group
-              </button>
+              </button>}
             </div>
 
-            {showAddGroup && (
+            {canEditGroups && showAddGroup && (
               <form
                 onSubmit={handleCreateGroup}
                 className="p-4 bg-slate-50 dark:bg-slate-950 border-b border-slate-200 dark:border-slate-800 space-y-3"
@@ -307,17 +316,17 @@ export const GroupsAndGivingWorkspace: React.FC<GroupsAndGivingWorkspaceProps> =
                   Automatic room conflict detection included
                 </p>
               </div>
-              <button
+              {canEditGroups && <button
                 type="button"
                 onClick={() => setShowAddBooking(!showAddBooking)}
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/50 rounded-lg"
               >
                 <Plus className="w-3.5 h-3.5" />
                 Book Room
-              </button>
+              </button>}
             </div>
 
-            {showAddBooking && (
+            {canEditGroups && showAddBooking && (
               <form
                 onSubmit={handleCreateBooking}
                 className="p-4 bg-slate-50 dark:bg-slate-950 border-b border-slate-200 dark:border-slate-800 space-y-3"
@@ -408,8 +417,8 @@ export const GroupsAndGivingWorkspace: React.FC<GroupsAndGivingWorkspaceProps> =
             </div>
           </div>
         </div>
-      ) : (
-        /* Zero-Fee Giving & Gift Aid Ledger */
+      ) : canSeeFinance ? (
+        /* Giving records */
         <div className="space-y-6">
           {/* Summary Metric Row */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -421,23 +430,23 @@ export const GroupsAndGivingWorkspace: React.FC<GroupsAndGivingWorkspaceProps> =
                 £{totalDonations.toLocaleString('en-GB', { minimumFractionDigits: 2 })}
               </div>
               <div className="text-[11px] text-slate-500 mt-1">
-                100% retained by church · £0.00 platform fee
+                This is a record of giving, not a payment processor.
               </div>
             </div>
             <div className="p-5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl">
               <div className="text-xs text-slate-500 dark:text-slate-400">
-                Estimated 25% Gift Aid Tax Reclaim
+                Potential Gift Aid for review
               </div>
               <div className="text-2xl font-bold font-mono tabular-nums text-emerald-600 dark:text-emerald-400 mt-1">
                 +£{giftAidReclaimable.toLocaleString('en-GB', { minimumFractionDigits: 2 })}
               </div>
               <div className="text-[11px] text-slate-500 mt-1">
-                Eligible on UK Gift Aid declarations
+                Subject to valid declarations and HMRC rules
               </div>
             </div>
             <div className="p-5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl">
               <div className="text-xs text-slate-500 dark:text-slate-400">
-                Combined Ministry Impact Total
+                Recorded giving plus potential Gift Aid
               </div>
               <div className="text-2xl font-bold font-mono tabular-nums text-indigo-600 dark:text-indigo-400 mt-1">
                 £
@@ -455,10 +464,10 @@ export const GroupsAndGivingWorkspace: React.FC<GroupsAndGivingWorkspaceProps> =
             <div className="flex flex-wrap items-center justify-between gap-2 px-5 py-3.5 border-b border-slate-200 dark:border-slate-800">
               <div>
                 <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">
-                  Zero-Fee Giving & Standing Order Ledger
+                  Giving ledger
                 </h2>
                 <p className="text-xs text-slate-500 dark:text-slate-400">
-                  Record bank standing orders, BACS transfers, and Sunday cash baskets without paying 2.9% card processor cuts
+                  Record transfers and offerings. No payments are processed here.
                 </p>
               </div>
               <div className="flex items-center gap-2">
@@ -468,20 +477,20 @@ export const GroupsAndGivingWorkspace: React.FC<GroupsAndGivingWorkspaceProps> =
                   className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-200 border border-slate-300 dark:border-slate-700 rounded-lg hover:bg-slate-100"
                 >
                   <Download className="w-3.5 h-3.5" />
-                  Export Gift Aid CSV
+                  Export review CSV
                 </button>
-                <button
+                {canEditFinance && <button
                   type="button"
                   onClick={() => setShowAddDonation(!showAddDonation)}
                   className="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold text-white bg-indigo-600 rounded-lg hover:bg-indigo-500"
                 >
                   <Plus className="w-3.5 h-3.5" />
                   Log Offering / Transfer
-                </button>
+                </button>}
               </div>
             </div>
 
-            {showAddDonation && (
+            {canEditFinance && showAddDonation && (
               <form
                 onSubmit={handleCreateDonation}
                 className="p-4 bg-slate-50 dark:bg-slate-950 border-b border-slate-200 dark:border-slate-800 grid grid-cols-1 sm:grid-cols-6 gap-3 items-end"
@@ -583,7 +592,7 @@ export const GroupsAndGivingWorkspace: React.FC<GroupsAndGivingWorkspaceProps> =
             </div>
           </div>
         </div>
-      )}
+      ) : <p>This area is restricted to church finance staff.</p>}
     </div>
   );
 };
