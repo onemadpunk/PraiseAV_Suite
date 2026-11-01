@@ -39,13 +39,14 @@ export const CheckInsWorkspace: React.FC<CheckInsWorkspaceProps> = ({
     (c) => roomFilter === 'ALL' || c.ageGroup === roomFilter
   );
 
-  const checkedInCount = childrenList.filter((c) => c.checkedInAt && !c.checkedOutAt).length;
+  const today = new Date().toLocaleDateString('en-CA');
+  const checkedInCount = childrenList.filter((c) => c.serviceDate === today && c.checkedInAt && !c.checkedOutAt).length;
   const badgeChild =
     childrenList.find((c) => c.id === selectedBadgeChildId) || childrenList[0];
 
   const handleRegisterSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!childName.trim()) return;
+    if (!childName.trim() || !guardianName.trim()) return;
     const randomNumber = () => crypto.getRandomValues(new Uint32Array(1))[0] % 9000 + 1000;
     let randomCode = 'K-' + randomNumber();
     while (childrenList.some((child) => child.securityCode === randomCode)) randomCode = 'K-' + randomNumber();
@@ -63,14 +64,14 @@ export const CheckInsWorkspace: React.FC<CheckInsWorkspaceProps> = ({
       childName: childName.trim(),
       ageGroup,
       room: roomMap[ageGroup],
-      guardianName: guardianName.trim() || 'Parent / Guardian',
-      guardianPhone: guardianPhone.trim() || '+44 7700 900000',
+      guardianName: guardianName.trim(),
+      guardianPhone: guardianPhone.trim(),
       medicalAlert: medicalAlert.trim() || 'None',
       securityCode: randomCode,
       pagerCode,
       checkedInAt: nowHHMM,
       checkedOutAt: null,
-      serviceDate: new Date().toLocaleDateString('en-CA'),
+      serviceDate: today,
     };
     onAddChild(created);
     setSelectedBadgeChildId(created.id);
@@ -84,7 +85,7 @@ export const CheckInsWorkspace: React.FC<CheckInsWorkspaceProps> = ({
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-5 border-b border-slate-200 dark:border-slate-800">
         <div>
           <div className="text-xs text-slate-500 dark:text-slate-400 font-mono tabular-nums">
-            Kids check-in desk · Active Checked-In: {checkedInCount} / {childrenList.length} Registered
+            Kids check-in desk · Active Checked-In: {checkedInCount} today / {childrenList.length} records
           </div>
           <h1 className="text-xl font-bold tracking-tight text-slate-900 dark:text-slate-100 mt-1">
             Kids & Youth Check-Ins
