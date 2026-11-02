@@ -10,6 +10,13 @@ import {
 import { churchRules } from '../services/churchRules';
 import { readLegacySnapshot } from '../services/legacyData';
 
+function signInError(failure: unknown): string {
+  const code = failure && typeof failure === 'object' && 'code' in failure ? String(failure.code) : '';
+  if (code === 'auth/popup-closed-by-user') return 'Google sign-in was closed. Click Sign in with Google to try again.';
+  if (code === 'auth/popup-blocked') return 'Your browser blocked the Google sign-in window. Allow pop-ups for this site, then try again.';
+  return `Google sign-in failed. ${String(failure)}`;
+}
+
 export function ChurchGate({ onReady, onDemo }: { onReady: (session: ChurchSession) => void; onDemo: () => void }) {
   const [connection, setConnection] = useState<ChurchConnection | null>(() => readChurchConnection());
   const [churchName, setChurchName] = useState('');
@@ -73,14 +80,16 @@ export function ChurchGate({ onReady, onDemo }: { onReady: (session: ChurchSessi
 
   const connect = async () => {
     if (busy) return;
+    let parsed: ChurchConnection;
+    try { parsed = parseChurchConnection({ config: parseFirebaseConfigText(configText), churchName, ownerEmail }); }
+    catch (failure) { setError(String(failure)); return; }
     setBusy(true);
     try {
-      const parsed = parseChurchConnection({ config: parseFirebaseConfigText(configText), churchName, ownerEmail });
       saveChurchConnection(parsed);
       setConnection(parsed);
       setError('');
       await signInChurch(parsed);
-    } catch (failure) { setError(String(failure)); }
+    } catch (failure) { setError(signInError(failure)); }
     finally { setBusy(false); }
   };
 
@@ -103,6 +112,7 @@ export function ChurchGate({ onReady, onDemo }: { onReady: (session: ChurchSessi
           <>
             <p><strong>{connection.churchName}</strong> owns its Firebase project and church records.</p>
             {userName ? <p>Signed in as {userName}</p> : <p>Sign in with your own Google account to request or use church access.</p>}
+            {busy && !pending && <p role="status" className="text-sm text-sky-700 dark:text-sky-300">Complete sign-in in the Google window. This page will continue when you finish.</p>}
             {pending ? (
               <div className="space-y-3">
                 <p>Your church administrator has not approved your account yet.</p>
@@ -118,9 +128,9 @@ export function ChurchGate({ onReady, onDemo }: { onReady: (session: ChurchSessi
               <button className="px-4 py-2 rounded bg-sky-600 text-white disabled:opacity-50" disabled={busy} onClick={async () => {
                 setBusy(true);
                 try { await signInChurch(connection); setError(''); }
-                catch (failure) { setError(String(failure)); }
+                catch (failure) { setError(signInError(failure)); }
                 finally { setBusy(false); }
-              }}>Sign in with Google</button>
+              }}>{busy ? 'Waiting for Google sign-in…' : 'Sign in with Google'}</button>
             )}
             <button className="ml-3 underline text-sm" onClick={switchChurch}>Use another church</button>
           </>
