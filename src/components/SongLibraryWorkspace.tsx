@@ -121,10 +121,11 @@ export const SongLibraryWorkspace: React.FC<SongLibraryWorkspaceProps> = ({
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-5 border-b border-slate-200 dark:border-slate-800">
+      <div className="suite-page-header flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-5 border-b border-slate-200 dark:border-slate-800">
         <div>
+          <div className="suite-eyebrow">Worship resources / Library</div>
           <h1 className="text-xl font-bold tracking-tight text-slate-900 dark:text-slate-100">
-            Song Library and ChordPro
+            Song library
           </h1>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
             Maintain church-licensed lyrics and chords, preview slides, and prepare charts in the key your musicians need.
