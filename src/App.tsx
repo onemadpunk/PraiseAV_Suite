@@ -6,6 +6,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Cloud,
+  Headphones,
   Download,
   ExternalLink,
   HeartHandshake,
@@ -65,6 +66,16 @@ type ActiveModule =
   | 'checkins'
   | 'groups-giving'
   | 'praise-av';
+
+const MODULE_TITLES: Record<ActiveModule, string> = {
+  services: 'Service planning',
+  songs: 'Song library',
+  band: 'Band stand',
+  people: 'People & rotas',
+  checkins: 'Kids check-ins',
+  'groups-giving': 'Groups, rooms & giving',
+  'praise-av': 'PraiseAV export',
+};
 
 function defaultModule(session: ChurchSession | null): ActiveModule {
   if (!session) return 'services';
@@ -236,10 +247,10 @@ function SuiteWorkspace({ session, onExit }: { session: ChurchSession | null; on
   if (session && !dataReady) return <main className="p-8">Opening {session.connection.churchName}…</main>;
 
   return (
-    <div className="min-h-screen flex flex-col bg-slate-50 dark:bg-[#0B0F19] text-slate-900 dark:text-slate-100">
-      {/* Mandatory 3-Zone Top Bar Contract */}
-      <header className="flex items-center justify-between gap-8 px-6 py-3.5 bg-white dark:bg-[#111827] border-b border-slate-200 dark:border-slate-800 sticky top-0 z-30">
-        {/* Zone 1: Single text element wordmark */}
+    <div className="suite-shell min-h-screen flex flex-col bg-slate-50 dark:bg-[#0B0F19] text-slate-900 dark:text-slate-100">
+      {/* Suite identity, current section, and account actions */}
+      <header className="suite-topbar flex items-center justify-between gap-8 px-6 py-3.5 bg-white dark:bg-[#111827] border-b border-slate-200 dark:border-slate-800 sticky top-0 z-30">
+        {/* Suite identity */}
         <a
           href="#top"
           onClick={(e) => {
@@ -252,70 +263,12 @@ function SuiteWorkspace({ session, onExit }: { session: ChurchSession | null; on
           <img className="hidden w-44 h-auto dark:block" src={import.meta.env.BASE_URL + 'branding/suite-horizontal-dark.svg'} alt="PraiseAV Suite" />
         </a>
 
-        {/* Zone 2: 5 concise single-line text navigation links */}
-        <nav className="hidden md:flex items-center gap-6 text-sm font-medium text-slate-600 dark:text-slate-300">
-          <button
-            type="button"
-            onClick={() => setActiveModule('services')}
-            className={`hover:text-slate-900 dark:hover:text-white transition-colors whitespace-nowrap shrink-0 underline-offset-8 ${
-              activeModule === 'services'
-                ? 'text-sky-600 dark:text-sky-400 underline font-semibold'
-                : ''
-            }`}
-          >
-            Services
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveModule('songs')}
-            className={`hover:text-slate-900 dark:hover:text-white transition-colors whitespace-nowrap shrink-0 underline-offset-8 ${
-              activeModule === 'songs'
-                ? 'text-sky-600 dark:text-sky-400 underline font-semibold'
-                : ''
-            }`}
-          >
-            Songs
-          </button>
-          <button type="button" onClick={() => setActiveModule('band')}
-            className={activeModule === 'band' ? 'text-sky-600 dark:text-sky-400 underline font-semibold' : 'hover:text-slate-900 dark:hover:text-white'}>
-            Band stand
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveModule('people')}
-            className={`hover:text-slate-900 dark:hover:text-white transition-colors whitespace-nowrap shrink-0 underline-offset-8 ${
-              activeModule === 'people'
-                ? 'text-sky-600 dark:text-sky-400 underline font-semibold'
-                : ''
-            }`}
-          >
-            People & Rotas
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveModule('checkins')}
-            className={`hover:text-slate-900 dark:hover:text-white transition-colors whitespace-nowrap shrink-0 underline-offset-8 ${
-              activeModule === 'checkins'
-                ? 'text-sky-600 dark:text-sky-400 underline font-semibold'
-                : ''
-            }`}
-          >
-            Check-Ins
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveModule('groups-giving')}
-            className={`hover:text-slate-900 dark:hover:text-white transition-colors whitespace-nowrap shrink-0 underline-offset-8 ${
-              activeModule === 'groups-giving'
-                ? 'text-sky-600 dark:text-sky-400 underline font-semibold'
-                : ''
-            }`}
-          >
-            Groups & Giving
-          </button>
-        </nav>
+        <div className="suite-topbar-context" aria-live="polite">
+          <span className="suite-topbar-kicker">{session?.connection.churchName || 'Sample church'}</span>
+          <span className="suite-topbar-page">{MODULE_TITLES[activeModule]}</span>
+        </div>
 
-        {/* Zone 3: 1 primary action */}
+        {/* Account and export actions */}
         <div className="flex items-center gap-3 shrink-0">
           <a className="text-xs underline" href="https://github.com/onemadpunk/PraiseAV_Suite/blob/main/docs/workflows.md" target="_blank" rel="noreferrer">Help</a>
           {session && (session.owner || session.roles.includes('admin')) && <button type="button" className="px-3 py-2 text-xs border rounded-lg" onClick={() => setShowAdmin(true)}>Church access</button>}
@@ -333,13 +286,13 @@ function SuiteWorkspace({ session, onExit }: { session: ChurchSession | null; on
       {/* Workspace Body: Left Sidebar (260px) + Main Content Viewport */}
       <div className="flex-1 flex flex-col lg:flex-row">
         {/* Left Navigation & Zero-Cost Storage Controls Sidebar */}
-        <aside className="w-full lg:w-64 shrink-0 bg-white dark:bg-[#111827] border-b lg:border-b-0 lg:border-r border-slate-200 dark:border-slate-800 p-4 flex flex-col justify-between gap-6">
+        <aside className="suite-sidebar w-full lg:w-64 shrink-0 bg-white dark:bg-[#111827] border-b lg:border-b-0 lg:border-r border-slate-200 dark:border-slate-800 p-4 flex flex-col justify-between gap-6">
           <div className="space-y-6">
             <div>
               <div className="px-3 text-[11px] font-semibold text-slate-400 dark:text-slate-500 mb-2">
                 PraiseAV Church Suite
               </div>
-              <div className="space-y-1">
+              <nav className="suite-nav space-y-1" aria-label="Suite sections">
                 <button
                   type="button"
                   onClick={() => setActiveModule('services')}
@@ -372,8 +325,8 @@ function SuiteWorkspace({ session, onExit }: { session: ChurchSession | null; on
                   <span className="font-mono text-[11px] text-slate-400">{songs.length}</span>
                 </button>
 
-                <button type="button" onClick={() => setActiveModule('band')} className="w-full text-left px-3 py-2 text-xs font-medium rounded-lg text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800">
-                  Band stand
+                <button type="button" onClick={() => setActiveModule('band')} className={`w-full flex items-center px-3 py-2 text-xs font-medium rounded-lg ${activeModule === 'band' ? 'bg-sky-50 dark:bg-sky-950/60 text-sky-700 dark:text-sky-300 font-semibold' : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'}`}>
+                  <Headphones className="w-4 h-4 mr-2.5" /> Band stand
                 </button>
                 <button
                   type="button"
@@ -445,7 +398,7 @@ function SuiteWorkspace({ session, onExit }: { session: ChurchSession | null; on
                     File
                   </span>
                 </button>
-              </div>
+              </nav>
             </div>
 
             {/* Active PraiseAV Quick Status Card */}
@@ -545,7 +498,7 @@ function SuiteWorkspace({ session, onExit }: { session: ChurchSession | null; on
         </aside>
 
         {/* Main Content Viewport */}
-        <main className="flex-1 p-6 lg:p-8 max-w-[1440px] w-full mx-auto">
+        <main className="suite-main flex-1 p-6 lg:p-8 max-w-[1440px] w-full mx-auto">
           {!moduleAllowed(activeModule) ? <p role="status">Your church role does not include this area. Ask a church administrator if you need access.</p> : <>
           {activeModule === 'services' && (
             <ServicesWorkspace

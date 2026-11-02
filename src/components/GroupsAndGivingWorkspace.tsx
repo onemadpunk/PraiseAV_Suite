@@ -177,10 +177,11 @@ export const GroupsAndGivingWorkspace: React.FC<GroupsAndGivingWorkspaceProps> =
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-5 border-b border-slate-200 dark:border-slate-800">
+      <div className="suite-page-header flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-5 border-b border-slate-200 dark:border-slate-800">
         <div>
+          <div className="suite-eyebrow">Church life / Administration</div>
           <h1 className="text-xl font-bold tracking-tight text-slate-900 dark:text-slate-100">
-            Small Groups, Room Bookings and Giving Records
+            Groups, rooms & giving
           </h1>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
             Coordinate groups and rooms. Finance staff can record giving for review.

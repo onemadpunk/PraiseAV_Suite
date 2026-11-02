@@ -82,13 +82,14 @@ export const CheckInsWorkspace: React.FC<CheckInsWorkspaceProps> = ({
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-5 border-b border-slate-200 dark:border-slate-800">
+      <div className="suite-page-header flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-5 border-b border-slate-200 dark:border-slate-800">
         <div>
+          <div className="suite-eyebrow">Family ministry / Check-ins</div>
           <div className="text-xs text-slate-500 dark:text-slate-400 font-mono tabular-nums">
             Kids check-in desk · Active Checked-In: {checkedInCount} today / {childrenList.length} records
           </div>
           <h1 className="text-xl font-bold tracking-tight text-slate-900 dark:text-slate-100 mt-1">
-            Kids & Youth Check-Ins
+            Kids & youth check-ins
           </h1>
         </div>
 

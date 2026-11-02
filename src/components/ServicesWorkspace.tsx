@@ -252,21 +252,14 @@ export const ServicesWorkspace: React.FC<ServicesWorkspaceProps> = ({
 
   return (
     <div className="space-y-6">
-      {/* Top Service Selector & Action Strip */}
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-5 border-b border-slate-200 dark:border-slate-800">
-        <div className="space-y-1">
-          <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
-            <span>Services & Order Builder</span>
-            <span aria-hidden="true">·</span>
-            <span>Series: {activePlan.seriesTitle}</span>
-            <span aria-hidden="true">·</span>
-            <span className="font-mono tabular-nums">{activePlan.date}</span>
-            <span aria-hidden="true">·</span>
-            <span className="font-mono tabular-nums">
-              Gatherings: {activePlan.serviceTimes.join(' & ')}
-            </span>
-          </div>
-          <div className="flex flex-wrap items-center gap-3">
+      {/* Service plan overview and actions */}
+      <div className="suite-service-hero">
+        <div className="suite-service-hero-copy">
+          <div className="suite-eyebrow">Worship planning <span aria-hidden="true">/</span> Services</div>
+          <h1>Plan your next gathering</h1>
+          <p>Shape the service, prepare your team, and send every cue to PraiseAV.</p>
+          <div className="suite-service-picker">
+            <span className="suite-picker-label">Current plan</span>
             <select
               aria-label="Select Service Plan"
               value={activePlan.id}
@@ -277,7 +270,7 @@ export const ServicesWorkspace: React.FC<ServicesWorkspaceProps> = ({
                   setSelectedItemId(nextPlan.items[0].id);
                 }
               }}
-              className="text-xl font-bold tracking-tight bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg px-3 py-1.5 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-600"
+              className="suite-plan-select text-xl font-bold tracking-tight bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg px-3 py-1.5 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500"
             >
               {plans.map((p) => (
                 <option key={p.id} value={p.id}>
@@ -288,26 +281,33 @@ export const ServicesWorkspace: React.FC<ServicesWorkspaceProps> = ({
             <button
               type="button"
               onClick={() => setShowNewPlanForm(!showNewPlanForm)}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors whitespace-nowrap shrink-0"
+              className="suite-new-plan inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors whitespace-nowrap shrink-0"
             >
               <Plus className="w-3.5 h-3.5" />
-              New Service Plan
+              New plan
             </button>
+          </div>
+          <div className="suite-service-facts">
+            <span>{activePlan.seriesTitle || 'No series'}</span>
+            <span className="font-mono tabular-nums">{activePlan.date}</span>
+            <span className="font-mono tabular-nums">{activePlan.serviceTimes.join(' & ')}</span>
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2.5">
-          <div className="text-xs text-slate-600 dark:text-slate-400 pr-2 font-mono tabular-nums">
-            Runtime: <strong className="text-slate-900 dark:text-slate-100">{totalPlannedMinutes}m</strong> /{' '}
-            {activePlan.targetDurationMinutes}m target
+        <div className="suite-service-hero-side">
+          <div className="suite-runtime-card">
+            <span>Planned runtime</span>
+            <strong>{totalPlannedMinutes}<small> min</small></strong>
+            <span>Target {activePlan.targetDurationMinutes} min</span>
           </div>
+          <div className="suite-service-actions">
           <button
             type="button"
             onClick={() => window.print()}
             className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors whitespace-nowrap shrink-0"
           >
             <Printer className="w-3.5 h-3.5" />
-            Print Service Sheet
+            Print sheet
           </button>
           <button
             type="button"
@@ -315,7 +315,7 @@ export const ServicesWorkspace: React.FC<ServicesWorkspaceProps> = ({
             className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-medium text-slate-800 dark:text-slate-100 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors whitespace-nowrap shrink-0"
           >
             <Download className="w-3.5 h-3.5" />
-            Download .praiseav file
+            Download .praiseav
           </button>
           <button
             type="button"
@@ -323,11 +323,12 @@ export const ServicesWorkspace: React.FC<ServicesWorkspaceProps> = ({
               onPushItemToLiveAV(activePlan.id, Math.max(0, selectedItemIndex), 0);
               onOpenPraiseAVConsole();
             }}
-            className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-semibold text-white bg-indigo-600 rounded-lg hover:bg-indigo-500 transition-colors whitespace-nowrap shrink-0"
+            className="suite-preview-button inline-flex items-center gap-1.5 px-4 py-2 text-xs font-semibold text-white bg-indigo-600 rounded-lg hover:bg-indigo-500 transition-colors whitespace-nowrap shrink-0"
           >
             <Radio className="w-3.5 h-3.5" />
             Preview selected cue
           </button>
+          </div>
         </div>
       </div>
 

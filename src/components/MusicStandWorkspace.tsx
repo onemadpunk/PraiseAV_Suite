@@ -50,8 +50,8 @@ export function MusicStandWorkspace({ plans, songs }: Props) {
   };
 
   return <section className={(expanded ? 'fixed inset-0 z-50 overflow-y-auto p-4 bg-white dark:bg-slate-950 ' : '') + 'space-y-5'}>
-    <div className="flex flex-wrap items-center justify-between gap-2">
-      <div><h1 className="text-xl font-bold">Band stand</h1><p className="text-sm text-slate-600 dark:text-slate-300">Read-only charts for this service. Your key and capo choices affect this screen only.</p></div>
+    <div className="suite-page-header flex flex-wrap items-center justify-between gap-2">
+      <div><div className="suite-eyebrow">Worship team / Charts</div><h1 className="text-xl font-bold">Band stand</h1><p className="text-sm text-slate-600 dark:text-slate-300">Read-only charts for this service. Your key and capo choices affect this screen only.</p></div>
       <div className="flex gap-2">
         <button className="p-2 border rounded" onClick={printSongbook}>Print / save songbook PDF</button>
         <button className="p-2 border rounded" onClick={() => setExpanded(!expanded)}>{expanded ? 'Close full screen' : 'Full screen'}</button>
