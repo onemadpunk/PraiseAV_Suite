@@ -55,7 +55,7 @@ export const PeopleAndRotasWorkspace: React.FC<PeopleAndRotasWorkspaceProps> = (
     e.preventDefault();
     if (!fullName.trim()) return;
     const created: Member = {
-      id: `mem-${Date.now()}`,
+      id: 'mem-' + crypto.randomUUID(),
       fullName: fullName.trim(),
       email: email.trim() || 'member@gracecommunity.org.uk',
       phone: phone.trim() || '+44 7700 900000',

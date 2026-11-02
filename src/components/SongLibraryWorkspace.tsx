@@ -7,6 +7,7 @@ import {
   Send,
 } from 'lucide-react';
 import { Song } from '../types/church';
+import { hasSongWords } from '../utils/praiseavService';
 import {
   ALL_KEYS,
   calculateCapoSuggestions,
@@ -39,18 +40,12 @@ export const SongLibraryWorkspace: React.FC<SongLibraryWorkspaceProps> = ({
   // New Song Form
   const [newTitle, setNewTitle] = useState('');
   const [newAuthor, setNewAuthor] = useState('');
-  const [newCcli, setNewCcli] = useState('7120000');
+  const [newCcli, setNewCcli] = useState('');
   const [newKey, setNewKey] = useState('G');
   const [newBpm, setNewBpm] = useState(72);
   const [newTimeSig, setNewTimeSig] = useState<'4/4' | '3/4' | '6/8'>('4/4');
-  const [newThemes, setNewThemes] = useState('Worship, Grace, Praise');
-  const [newChordPro, setNewChordPro] = useState(`[Verse 1]
-[G]Sing to the Lord a [C]new song of grace
-[Em]Lift every voice in [D]this holy place
-
-[Chorus]
-[C]Great is Your [G]faithfulness, [D]merciful [Em]King
-[C]Forever and [D]ever Your [G]praises we sing`);
+  const [newThemes, setNewThemes] = useState('');
+  const [newChordPro, setNewChordPro] = useState('[Verse 1]\n\n[Chorus]\n');
 
   const filteredSongs = songs.filter((s) => {
     const matchesQuery =
@@ -74,10 +69,10 @@ export const SongLibraryWorkspace: React.FC<SongLibraryWorkspaceProps> = ({
     e.preventDefault();
     if (!newTitle.trim()) return;
     const created: Song = {
-      id: `song-${Date.now()}`,
+      id: 'song-' + crypto.randomUUID(),
       title: newTitle.trim(),
-      author: newAuthor.trim() || 'Congregational Arrangement',
-      ccliNumber: newCcli.trim() || 'Public Domain',
+      author: newAuthor.trim(),
+      ccliNumber: newCcli.trim(),
       defaultKey: newKey,
       bpm: newBpm,
       timeSignature: newTimeSig,
@@ -85,9 +80,9 @@ export const SongLibraryWorkspace: React.FC<SongLibraryWorkspaceProps> = ({
         .split(',')
         .map((t) => t.trim())
         .filter(Boolean),
-      arrangement: ['Verse 1', 'Chorus', 'Verse 2', 'Chorus', 'Bridge'],
+      arrangement: [...newChordPro.matchAll(/^\s*\[(Verse|Chorus|Bridge|Intro|Outro|Pre-Chorus|Tag|Interlude|Ending|Vamp|Instrumental)[^\]]*\]\s*$/gim)].map((match) => match[0].trim().slice(1, -1)),
       chordPro: newChordPro,
-      lastScheduled: '2026-11-01',
+      lastScheduled: '',
     };
     onAddSong(created);
     setSelectedSongId(created.id);
@@ -98,22 +93,23 @@ export const SongLibraryWorkspace: React.FC<SongLibraryWorkspaceProps> = ({
   };
 
   const handleExportSongForPraiseAV = (song: Song) => {
-    const slides = compileSongToPraiseSlides(song, previewKey);
-    const payload = {
-      schema: 'PraiseAV.SongItem.v1',
-      song: {
-        ...song,
-        activeKey: previewKey,
-      },
-      slides,
-    };
-    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+    const lines = song.chordPro.replace(/\r\n?/g, '\n').split('\n').map((line) =>
+      /^\s*\[(?:Verse|Chorus|Bridge|Intro|Outro|Tag|Pre-Chorus)[^\]]*\]\s*$/i.test(line)
+        ? line.trim().slice(1, -1)
+        : line.replace(/\[[^\]]+\]/g, '')
+    );
+    if (!hasSongWords(song.chordPro)) {
+      alert('Add lyrics you have permission to use before exporting this song.');
+      return;
+    }
+    const text = [song.title, '', ...lines, '', song.author, 'CCLI Song # ' + (song.ccliNumber || 'none'), ''].join('\n');
+    const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `${song.title.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-${previewKey}.praiseav-song.json`;
+    a.download = song.title.toLowerCase().replace(/[^a-z0-9]+/g, '-') + '.txt';
     a.click();
-    URL.revokeObjectURL(url);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
   };
 
   const transposedText = selectedSong
@@ -128,10 +124,10 @@ export const SongLibraryWorkspace: React.FC<SongLibraryWorkspaceProps> = ({
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-5 border-b border-slate-200 dark:border-slate-800">
         <div>
           <h1 className="text-xl font-bold tracking-tight text-slate-900 dark:text-slate-100">
-            Song Library, ChordPro Transposer & Praise AV Slide Studio
+            Song Library and ChordPro
           </h1>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-            Maintain lyrics and chords once — automatically compile 16:9 sanctuary slides, livestream lower-thirds, and band chord charts in any key
+            Maintain church-licensed lyrics and chords, preview slides, and prepare charts in the key your musicians need.
           </p>
         </div>
         <button

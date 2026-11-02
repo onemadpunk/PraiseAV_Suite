@@ -22,13 +22,15 @@ import {
 import {
   addSecondsToClockTime,
   ALL_KEYS,
-  buildPraiseAVExportBundle,
   calculateCapoSuggestions,
   compileServiceItemSlides,
   formatDurationMMSS,
   parseChordProForSheet,
   transposeChordPro,
 } from '../utils/musicAndAv';
+import { toPraiseAVService } from '../utils/praiseavService';
+import { rotaConflicts } from '../utils/rotaConflicts';
+import { arrangeChordPro } from '../utils/songArrangement';
 
 interface ServicesWorkspaceProps {
   plans: ServicePlan[];
@@ -66,32 +68,51 @@ export const ServicesWorkspace: React.FC<ServicesWorkspaceProps> = ({
   const [newItemType, setNewItemType] = useState<ServiceItemType>('song');
   const [newItemTitle, setNewItemTitle] = useState('');
   const [newItemSubtitle, setNewItemSubtitle] = useState('');
-  const [newItemLeader, setNewItemLeader] = useState('Hannah Vance');
+  const [newItemLeader, setNewItemLeader] = useState('');
   const [newItemMinutes, setNewItemMinutes] = useState(4);
   const [newItemSongId, setNewItemSongId] = useState(songs[0]?.id || '');
   const [newItemKey, setNewItemKey] = useState(songs[0]?.defaultKey || 'C');
   const [newItemScriptureRef, setNewItemScriptureRef] = useState('Romans 8:31–39');
   const [newItemScriptureTranslation, setNewItemScriptureTranslation] = useState<'NIV' | 'ESV' | 'KJV' | 'NLT'>('NIV');
-  const [newItemScriptureText, setNewItemScriptureText] = useState(
-    'What, then, shall we say in response to these things? If God is for us, who can be against us? He who did not spare his own Son, but gave him up for us all—how will he not also, along with him, graciously give us all things?'
-  );
-  const [newItemExternalMedia, setNewItemExternalMedia] = useState('Guest-Speaker-Deck.pptx');
+  const [newItemScriptureText, setNewItemScriptureText] = useState('');
+  const [newItemExternalMedia, setNewItemExternalMedia] = useState('');
   const [newItemStageNotes, setNewItemStageNotes] = useState('');
   const [newItemAudioCue, setNewItemAudioCue] = useState('Standard Mic Bus');
   const [newItemLightingCue, setNewItemLightingCue] = useState('Sanctuary Warm Wash');
 
   // New Service Plan State
   const [planTitleInput, setPlanTitleInput] = useState('');
-  const [planSeriesInput, setPlanSeriesInput] = useState('First Peter: Exiles & Citizens of Grace');
-  const [planDateInput, setPlanDateInput] = useState('2026-11-15');
+  const [planSeriesInput, setPlanSeriesInput] = useState('');
+  const [planDateInput, setPlanDateInput] = useState(new Date().toLocaleDateString('en-CA'));
+  const [planTimeInput, setPlanTimeInput] = useState('10:30');
 
   // Volunteer Assignment State
   const [selectedMemberId, setSelectedMemberId] = useState(members[0]?.id || '');
   const [selectedDepartment, setSelectedDepartment] = useState<RotaDepartment>('Band & Vocals');
   const [selectedRole, setSelectedRole] = useState('Worship Leader');
 
-  if (!activePlan) return null;
+  const handleCreatePlanSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!planTitleInput.trim()) return;
+    const created: ServicePlan = {
+      id: 'plan-' + crypto.randomUUID(),
+      title: planTitleInput.trim(),
+      seriesTitle: planSeriesInput.trim(),
+      date: planDateInput,
+      serviceTimes: [planTimeInput],
+      targetDurationMinutes: 75,
+      items: [],
+      rota: [],
+    };
+    onCreatePlan(created);
+    setPlanTitleInput('');
+    setShowNewPlanForm(false);
+  };
 
+  if (!activePlan) return <div className="space-y-3"><h1 className="text-xl font-bold">No services yet</h1><p>Create a service plan for this church. Each service can have its own songs and sermon.</p><button className="px-4 py-2 rounded bg-sky-600 text-white" onClick={() => setShowNewPlanForm(true)}>Create service</button>{showNewPlanForm && <form onSubmit={handleCreatePlanSubmit} className="space-y-2"><input className="p-2 border text-slate-900" required placeholder="Service name" value={planTitleInput} onChange={e => setPlanTitleInput(e.target.value)} /><input type="date" className="p-2 border text-slate-900" value={planDateInput} onChange={e => setPlanDateInput(e.target.value)} /><input type="time" className="p-2 border text-slate-900" value={planTimeInput} onChange={e => setPlanTimeInput(e.target.value)} /><button type="submit" className="p-2 border rounded">Save service</button></form>}</div>;
+
+  const selectedMember = members.find((member) => member.id === selectedMemberId) || members[0];
+  const assignmentWarnings = selectedMember ? rotaConflicts(selectedMember, activePlan, plans) : [];
   const selectedItemIndex = activePlan.items.findIndex((i) => i.id === selectedItemId);
   const selectedItem =
     activePlan.items[selectedItemIndex !== -1 ? selectedItemIndex : 0] || activePlan.items[0];
@@ -124,6 +145,12 @@ export const ServicesWorkspace: React.FC<ServicesWorkspaceProps> = ({
     onUpdatePlan({ ...activePlan, items: nextItems });
   };
 
+  const handleArrangementChange = (itemId: string, value: string) => {
+    const order = value.split(',').map((part) => part.trim()).filter(Boolean);
+    const nextItems = activePlan.items.map((item) => item.id === itemId ? { ...item, arrangementOverride: order.length ? order : undefined } : item);
+    onUpdatePlan({ ...activePlan, items: nextItems });
+  };
+
   const handleAddItemSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const chosenSong = songs.find((s) => s.id === newItemSongId);
@@ -133,7 +160,7 @@ export const ServicesWorkspace: React.FC<ServicesWorkspaceProps> = ({
         : newItemTitle.trim() || 'Service Element';
 
     const created: ServiceItem = {
-      id: `item-${Date.now()}`,
+      id: 'item-' + crypto.randomUUID(),
       type: newItemType,
       title: resolvedTitle,
       subtitle: newItemSubtitle.trim() || undefined,
@@ -145,7 +172,7 @@ export const ServicesWorkspace: React.FC<ServicesWorkspaceProps> = ({
       scriptureTranslation: newItemType === 'scripture' ? newItemScriptureTranslation : undefined,
       scriptureText: newItemType === 'scripture' ? newItemScriptureText : undefined,
       externalMediaName: newItemType === 'presentation' ? newItemExternalMedia : undefined,
-      stageNotes: newItemStageNotes || 'Cue synced with Praise AV operator.',
+      stageNotes: newItemStageNotes,
       audioCue: newItemAudioCue,
       lightingCue: newItemLightingCue,
     };
@@ -158,45 +185,15 @@ export const ServicesWorkspace: React.FC<ServicesWorkspaceProps> = ({
     setNewItemSubtitle('');
   };
 
-  const handleCreatePlanSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!planTitleInput.trim()) return;
-    const created: ServicePlan = {
-      id: `plan-${Date.now()}`,
-      title: planTitleInput.trim(),
-      seriesTitle: planSeriesInput.trim() || 'Sunday Gatherings',
-      date: planDateInput,
-      serviceTimes: ['09:00', '11:00'],
-      targetDurationMinutes: 75,
-      items: [
-        {
-          id: `item-init-${Date.now()}`,
-          type: 'preservice',
-          title: '5-Minute Sanctuary Countdown Loop',
-          subtitle: planTitleInput.trim(),
-          durationSeconds: 300,
-          leader: 'Marcus Sterling',
-          stageNotes: 'Auto-roll Praise AV pre-service announcement & moving background deck.',
-          audioCue: 'Walk-in Playlist -6dB',
-          lightingCue: 'Warm House 60%',
-        },
-      ],
-      rota: [],
-    };
-    onCreatePlan(created);
-    setPlanTitleInput('');
-    setShowNewPlanForm(false);
-  };
-
   const handleExportPraiseBundle = () => {
-    const bundle = buildPraiseAVExportBundle(activePlan, songs);
+    const bundle = toPraiseAVService(activePlan, songs);
     const blob = new Blob([JSON.stringify(bundle, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
     a.download = `${activePlan.date}-${activePlan.title
       .toLowerCase()
-      .replace(/[^a-z0-9]+/g, '-')}.praiseav.json`;
+      .replace(/[^a-z0-9]+/g, '-')}.praiseav`;
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -220,15 +217,16 @@ export const ServicesWorkspace: React.FC<ServicesWorkspaceProps> = ({
 
   const handleAssignVolunteerSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const member = members.find((m) => m.id === selectedMemberId);
+    const member = selectedMember;
     if (!member) return;
+    if (assignmentWarnings.length && !confirm('Check this assignment:\n' + assignmentWarnings.join('\n') + '\n\nAssign anyway?')) return;
     const newEntry: RotaAssignment = {
-      id: `rota-${Date.now()}`,
+      id: 'rota-' + crypto.randomUUID(),
       memberId: member.id,
       memberName: member.fullName,
       department: selectedDepartment,
       role: selectedRole,
-      status: 'Confirmed',
+      status: 'Pending',
     };
     onUpdatePlan({
       ...activePlan,
@@ -245,7 +243,7 @@ export const ServicesWorkspace: React.FC<ServicesWorkspaceProps> = ({
   const activeMusicalKey = selectedItem?.musicalKey || linkedSong?.defaultKey || 'C';
   const compiledSlides = selectedItem ? compileServiceItemSlides(selectedItem, songs) : [];
   const transposedChordPro = linkedSong
-    ? transposeChordPro(linkedSong.chordPro, linkedSong.defaultKey, activeMusicalKey)
+    ? transposeChordPro(arrangeChordPro(linkedSong.chordPro, selectedItem.arrangementOverride || linkedSong.arrangement), linkedSong.defaultKey, activeMusicalKey)
     : '';
   const parsedChordSheet = linkedSong ? parseChordProForSheet(transposedChordPro) : [];
   const capoSuggestions = linkedSong ? calculateCapoSuggestions(activeMusicalKey) : [];
@@ -317,7 +315,7 @@ export const ServicesWorkspace: React.FC<ServicesWorkspaceProps> = ({
             className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-medium text-slate-800 dark:text-slate-100 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors whitespace-nowrap shrink-0"
           >
             <Download className="w-3.5 h-3.5" />
-            Download .praiseav Bundle
+            Download .praiseav file
           </button>
           <button
             type="button"
@@ -328,7 +326,7 @@ export const ServicesWorkspace: React.FC<ServicesWorkspaceProps> = ({
             className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-semibold text-white bg-indigo-600 rounded-lg hover:bg-indigo-500 transition-colors whitespace-nowrap shrink-0"
           >
             <Radio className="w-3.5 h-3.5" />
-            Go Live in Praise AV
+            Preview selected cue
           </button>
         </div>
       </div>
@@ -359,7 +357,7 @@ export const ServicesWorkspace: React.FC<ServicesWorkspaceProps> = ({
               <input
                 type="text"
                 required
-                placeholder="e.g. Christ the King Sunday"
+                placeholder="e.g. Sunday Morning"
                 value={planTitleInput}
                 onChange={(e) => setPlanTitleInput(e.target.value)}
                 className="w-full px-3 py-2 text-sm bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-lg"
@@ -388,6 +386,7 @@ export const ServicesWorkspace: React.FC<ServicesWorkspaceProps> = ({
                 className="w-full px-3 py-2 text-sm font-mono bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-lg"
               />
             </div>
+            <div><label className="block text-xs font-medium mb-1">Start time</label><input type="time" value={planTimeInput} onChange={(e) => setPlanTimeInput(e.target.value)} className="w-full px-3 py-2 border rounded text-slate-900" /></div>
           </div>
           <div className="flex justify-end">
             <button
@@ -411,7 +410,7 @@ export const ServicesWorkspace: React.FC<ServicesWorkspaceProps> = ({
                   Order of Service ({activePlan.items.length} Cues)
                 </h2>
                 <p className="text-xs text-slate-500 dark:text-slate-400">
-                  Click any row to inspect transposed chords, preacher notes, and Praise AV projection slides
+                  Click a row to preview chords, notes, and slides before exporting
                 </p>
               </div>
               <button
@@ -440,11 +439,11 @@ export const ServicesWorkspace: React.FC<ServicesWorkspaceProps> = ({
                       className="w-full px-3 py-1.5 text-xs bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg"
                     >
                       <option value="song">Worship Song (from Library)</option>
-                      <option value="scripture">Bible Scripture (NIV / ESV / KJV)</option>
+                      <option value="scripture">Bible reading (paste text you may display)</option>
                       <option value="sermon">Sermon & Preacher Timer Notes</option>
-                      <option value="presentation">PowerPoint / PDF Guest Presentation</option>
+                      <option value="presentation">Guest presentation placeholder</option>
                       <option value="prayer">Prayer / Liturgy</option>
-                      <option value="preservice">Pre-Service Moving Background Loop</option>
+                      <option value="preservice">Pre-service item</option>
                       <option value="offering">Tithes & Offerings</option>
                     </select>
                   </div>
@@ -752,7 +751,7 @@ export const ServicesWorkspace: React.FC<ServicesWorkspaceProps> = ({
                           <div className="inline-flex items-center gap-1">
                             <button
                               type="button"
-                              title="Send to Praise AV Live Output"
+                              title="Preview this cue"
                               onClick={() => onPushItemToLiveAV(activePlan.id, idx, 0)}
                               className="p-1 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 rounded"
                             >
@@ -825,7 +824,7 @@ export const ServicesWorkspace: React.FC<ServicesWorkspaceProps> = ({
                     Team Member
                   </label>
                   <select
-                    value={selectedMemberId}
+                    value={selectedMember?.id || ''}
                     onChange={(e) => {
                       const m = members.find((mem) => mem.id === e.target.value);
                       setSelectedMemberId(e.target.value);
@@ -882,6 +881,7 @@ export const ServicesWorkspace: React.FC<ServicesWorkspaceProps> = ({
                     Add to Rota
                   </button>
                 </div>
+                {assignmentWarnings.length > 0 && <p role="alert" className="text-xs text-amber-600 col-span-full">{assignmentWarnings.join(' ')}</p>}
               </form>
             )}
 
@@ -1000,10 +1000,11 @@ export const ServicesWorkspace: React.FC<ServicesWorkspaceProps> = ({
               {inspectorTab === 'slides' && (
                 <div className="p-5 space-y-4 max-h-[620px] overflow-y-auto">
                   <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
-                    <span>Click any slide to trigger live on Praise AV output</span>
-                    <span className="font-mono tabular-nums">16:9 Sanctuary + Livestream</span>
+                    <span>Click a slide to select it in this Suite preview</span>
+                    <span className="font-mono tabular-nums">Suite preview, not live output</span>
                   </div>
 
+                  {compiledSlides.length === 0 && <p role="status" className="p-3 rounded border border-amber-400 text-sm">No song words have been entered. Add words your church is licensed to use in Songs before this service; the desktop export will show a reminder until then.</p>}
                   <div className="grid grid-cols-1 gap-3">
                     {compiledSlides.map((slide, sIdx) => (
                       <div
@@ -1022,7 +1023,7 @@ export const ServicesWorkspace: React.FC<ServicesWorkspaceProps> = ({
                             Slide {sIdx + 1} · {slide.label}
                           </span>
                           <span className="text-indigo-600 dark:text-indigo-400 font-medium opacity-80 group-hover:opacity-100">
-                            Project Live →
+                            Preview →
                           </span>
                         </div>
                         <div className="p-4 bg-slate-950 text-white text-center min-h-[104px] flex flex-col items-center justify-center">
@@ -1069,6 +1070,12 @@ export const ServicesWorkspace: React.FC<ServicesWorkspaceProps> = ({
                     </button>
                   </div>
 
+                  <label className="block text-xs text-slate-600 dark:text-slate-300">Order for this service (comma separated; repeat a section to sing it again)
+                    <input key={selectedItem.id} type="text" defaultValue={(selectedItem.arrangementOverride || linkedSong.arrangement).join(', ')}
+                      onBlur={(e) => handleArrangementChange(selectedItem.id, e.target.value)}
+                      className="block w-full mt-1 px-2 py-1 border rounded bg-white dark:bg-slate-800" />
+                    <span className="block mt-1 text-[11px]">Use the exact section names in the chart, such as Verse 1, Chorus, Verse 2, Chorus.</span>
+                  </label>
                   {capoSuggestions.length > 0 && (
                     <div className="text-xs text-slate-600 dark:text-slate-400 bg-slate-50 dark:bg-slate-950 p-3 rounded-lg border border-slate-200 dark:border-slate-800">
                       <span className="font-semibold text-slate-900 dark:text-slate-100">

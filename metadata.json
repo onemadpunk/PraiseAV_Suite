@@ -1,6 +1,6 @@
 {
-  "name": "Prase Suite",
-  "description": "Free, zero-cost church management and worship planning platform with native Prase AV projection sync, service orders, chord transposition, volunteer rotas, check-ins, small groups, and giving.",
+  "name": "PraiseAV Suite",
+  "description": "Church-owned service planning, songs, volunteer rotas, people, check-ins, groups, bookings and giving records. Exports service files for PraiseAV desktop.",
   "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+  "majorCapabilities": []
 }
