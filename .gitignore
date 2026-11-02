@@ -1,5 +1,6 @@
 node_modules/
 .firebase-cli/
+.firebase/
 .npm-cache/
 build/
 dist/

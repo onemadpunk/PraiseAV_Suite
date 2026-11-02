@@ -90,7 +90,9 @@ export function churchApp(connection: ChurchConnection): FirebaseApp {
 
 export async function signInChurch(connection: ChurchConnection): Promise<User> {
   const auth = getAuth(churchApp(connection));
-  const result = await signInWithPopup(auth, new GoogleAuthProvider());
+  const provider = new GoogleAuthProvider();
+  provider.setCustomParameters({ prompt: 'select_account' });
+  const result = await signInWithPopup(auth, provider);
   return result.user;
 }
 
