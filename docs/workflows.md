@@ -2,9 +2,9 @@
 
 ## Plan and export a service
 
-Create an empty service with a name, date, and time. Add songs, a reading, sermon, slides, or a placeholder for a visitor's presentation. Each service can use different songs and sermon points. Download the .praiseav file and open it in PraiseAV Windows. Songs without words are exported as a visible reminder to add licensed words in PraiseAV. Presentation placeholders contain a filename reminder, not the actual PowerPoint or video file.
+Create an empty service with a name, date, and time. Add songs, a reading, sermon, slides, or a placeholder for a visitor's presentation. Each service can use different songs and sermon points. In **PraiseAV export**, send its .praiseav file directly to the desktop app's Services folder in a browser that supports folder access, or download the file and open it in PraiseAV Windows. The folder choice is remembered in that browser; sending again updates the same file unless it has been changed outside the Suite. Songs without words are exported as a visible reminder to add licensed words in PraiseAV. Presentation placeholders contain a filename reminder, not the actual PowerPoint or video file.
 
-The Suite's cue and slide view is a local preview. It does not change the congregation projector. The desktop program handles live output. A shared OneDrive or Google Drive folder may transfer files between computers after the church has set it up; downloading a file in the Suite does not by itself place it in that folder.
+The Suite's cue and slide view is a local preview. It does not change the congregation projector. The desktop program handles live output. A shared OneDrive or Google Drive folder may transfer files between computers after the church has set it up. Folder transfer writes a service file only when the user clicks Send; it does not automatically update a service already open in PraiseAV.
 
 ## Songs and musicians
 

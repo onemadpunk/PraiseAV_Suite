@@ -30,9 +30,9 @@ export function hasSongWords(chordPro: string): boolean {
   return wordsFromChordPro(chordPro).split('\n').some((line) => Boolean(line.trim()) && !section.test(line));
 }
 
-function textBox(text: string) {
+function textBox(id: string, text: string) {
   return {
-    id: crypto.randomUUID(), type: 'text', x: 200, y: 380, w: 1520, h: 320,
+    id, type: 'text', x: 200, y: 380, w: 1520, h: 320,
     text, font: 'Segoe UI', size: 88, color: '#ffffff', bold: true,
     italic: false, align: 'center', shadow: true,
   };
@@ -43,7 +43,7 @@ function noticeSlide(item: ServiceItem, text: string) {
     uid: item.id,
     type: 'designed',
     name: item.title,
-    slides: [{ id: `${item.id}-1`, background: { type: 'theme' }, elements: [textBox(text)] }],
+    slides: [{ id: `${item.id}-1`, background: { type: 'theme' }, elements: [textBox(`${item.id}-text`, text)] }],
     suiteNotes: item.stageNotes,
     suiteAudioCue: item.audioCue,
     suiteLightingCue: item.lightingCue,

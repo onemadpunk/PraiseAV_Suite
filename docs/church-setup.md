@@ -6,9 +6,9 @@ A church administrator needs a Google account that the church controls. That acc
 
 For the existing `praiseav-suite` pilot, use **https://praiseav-suite.web.app/**. Google sign-in and church-owner access were verified there on 2 November 2026. This Firebase Hosting site uses the pilot's existing Spark project; it does not require a paid plan. The GitHub Pages address is still available, but its sign-in did not pass the pilot browser test.
 
-The planned public address is **suite.praiseav.com**, with a clear Suite link from **praiseav.com**. The existing GitHub Pages build remains at **onemadpunk.github.io/PraiseAV_Suite/**. When moving a church to a new address, keep both addresses in that project's Firebase Authentication → Authorized domains until sign-in has been tested on the new address. The Suite builds with relative asset paths and creates invitation links from the address currently open in the browser.
+The planned public address is **suite.praiseav.com**. The current **praiseav.com** site links to the tested Firebase Hosting pilot. The existing GitHub Pages build remains at **onemadpunk.github.io/PraiseAV_Suite/**, but its sign-in is unverified. When moving a church to a new address, keep both addresses in that project's Firebase Authentication → Authorized domains until sign-in has been tested on the new address. The Suite builds with relative asset paths and creates invitation links from the address currently open in the browser.
 
-The site owner must first add `suite.praiseav.com` as the custom domain in the Suite repository’s GitHub Pages settings. If GoDaddy manages the domain’s DNS, add a CNAME with **Name `suite`** and **Value `onemadpunk.github.io`** (no repository path). If the domain uses another company’s nameservers, make the record there instead. Enable HTTPS after GitHub issues its certificate. Do not publish the new address on praiseav.com until it loads and Google sign-in has been tested there. This changes only the Suite website address; it does not move any church’s Firestore records.
+If moving to `suite.praiseav.com`, add it as a custom domain for the existing Firebase Hosting site and follow the DNS records shown by Firebase Console. Then add the new domain to Firebase Authentication's authorised domains and the existing Google OAuth web client's JavaScript origins and redirect URI. Test HTTPS and Google sign-in there before changing the link on praiseav.com. This changes only the Suite website address; it does not move any church's Firestore records or require a paid Firebase plan.
 
 ## One-time setup for a church administrator
 
@@ -50,9 +50,11 @@ A browser backup is an ordinary unencrypted JSON file containing personal data. 
 
 ## 5. Connect to PraiseAV Windows
 
-In the Suite, choose a service and download its .praiseav file. Open it in PraiseAV through Service → Open → More choices → Open from somewhere else, or place it in a shared PraiseAV Services folder.
+In the Suite, choose a service, then open **PraiseAV export**. In Chrome or another browser with folder access, click **Send to PraiseAV folder** and choose the same **PraiseAV Services** folder that PraiseAV Windows uses. The Suite remembers the folder in that browser and can send later versions with one click. PraiseAV must reopen the service to see a newer file. The Suite refuses to replace the file if PraiseAV or another computer has changed it since the last transfer.
 
-On first run, PraiseAV asks whether you plan to use the Suite or prepare on another computer. Choose Yes to open the optional Church sharing guide. Choose Not now to keep local folders. Later, open More → Church sharing in PraiseAV. A cloud folder is shared only after you choose and confirm it.
+If your browser cannot choose a folder, use **Download .praiseav file** and open it in PraiseAV through Service → Open → More choices → Open from somewhere else, or move it to the PraiseAV Services folder yourself.
+
+On first run, PraiseAV asks whether you plan to use the Suite or prepare on another computer. Choose Yes to open the optional Church sharing guide. Choose Not now to keep local folders. Later, open More → Church sharing in PraiseAV. If the Suite and PraiseAV run on different computers, both must use the same locally synced OneDrive or Google Drive folder. A cloud folder is shared only after you choose and confirm it.
 
 The service file carries the order, the song words your church entered, and service-specific key and arrangement choices. Large media and visiting speaker presentation files are not embedded. Attach those files and run Ready for Sunday on the church computer before the service.
 

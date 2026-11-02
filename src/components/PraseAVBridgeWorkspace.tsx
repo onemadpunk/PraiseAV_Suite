@@ -1,6 +1,17 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { ServicePlan, Song } from '../types/church';
 import { toPraiseAVService } from '../utils/praiseavService';
+import {
+  loadServiceFolderLink, rememberServiceFolderLink, writeServiceToFolder,
+  type ServiceFolderLink,
+} from '../utils/serviceFolderTransfer';
+
+type FolderPickerWindow = Window & {
+  showDirectoryPicker?: (options: { id: string; mode: 'readwrite' }) => Promise<FileSystemDirectoryHandle>;
+};
+type WritableDirectory = FileSystemDirectoryHandle & {
+  requestPermission: (options: { mode: 'readwrite' }) => Promise<PermissionState>;
+};
 
 export interface PraiseAVThemePreset {
   id: string;
@@ -26,6 +37,70 @@ interface Props {
 export const PraseAVBridgeWorkspace: React.FC<Props> = ({
   activePlan, songs, activeThemePreset, onSelectThemePreset,
 }) => {
+  const [folderLink, setFolderLink] = useState<ServiceFolderLink | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [transferMessage, setTransferMessage] = useState('');
+  const canChooseFolder = typeof (window as FolderPickerWindow).showDirectoryPicker === 'function';
+
+  useEffect(() => {
+    let active = true;
+    loadServiceFolderLink().then((link) => { if (active) setFolderLink(link); }).catch(() => {});
+    return () => { active = false; };
+  }, []);
+
+  const chooseFolder = async (): Promise<ServiceFolderLink> => {
+    const picker = (window as FolderPickerWindow).showDirectoryPicker;
+    if (!picker) throw new Error('This browser cannot save directly to a folder. Use Download .praiseav file instead.');
+    const directory = await picker.call(window, { id: 'praiseav-services', mode: 'readwrite' });
+    const link = { directory, lastExports: {} };
+    setFolderLink(link);
+    await rememberServiceFolderLink(link);
+    return link;
+  };
+
+  const sendToFolder = async () => {
+    if (!activePlan || busy) return;
+    setBusy(true);
+    setTransferMessage('');
+    try {
+      const link = folderLink || await chooseFolder();
+      const permission = await (link.directory as WritableDirectory).requestPermission({ mode: 'readwrite' });
+      if (permission !== 'granted') throw new Error('Folder access was not granted. Use Download .praiseav file instead.');
+      const result = await writeServiceToFolder(
+        link.directory, toPraiseAVService(activePlan, songs), link.lastExports[activePlan.id],
+      );
+      const updated = { ...link, lastExports: { ...link.lastExports, [activePlan.id]: result.hash } };
+      setFolderLink(updated);
+      await rememberServiceFolderLink(updated);
+      setTransferMessage(result.unchanged
+        ? `${activePlan.title} is already up to date in ${link.directory.name}.`
+        : `Saved ${result.fileName} in ${link.directory.name}. Open it from PraiseAV’s Services list; reopen it there after later updates.`);
+    } catch (error) {
+      if (error instanceof DOMException && error.name === 'AbortError') return;
+      setTransferMessage(error instanceof Error ? error.message : 'Could not save to the selected folder. Use Download .praiseav file instead.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const changeFolder = async () => {
+    setTransferMessage('');
+    try {
+      const link = await chooseFolder();
+      setTransferMessage(`Selected ${link.directory.name}. Send the service when ready.`);
+    } catch (error) {
+      if (!(error instanceof DOMException && error.name === 'AbortError')) {
+        setTransferMessage(error instanceof Error ? error.message : 'Could not choose a folder.');
+      }
+    }
+  };
+
+  const forgetFolder = async () => {
+    await rememberServiceFolderLink(null);
+    setFolderLink(null);
+    setTransferMessage('This browser has forgotten the folder. Service files already saved there remain in place.');
+  };
+
   const download = () => {
     if (!activePlan) return;
     const service = toPraiseAVService(activePlan, songs);
@@ -40,18 +115,32 @@ export const PraseAVBridgeWorkspace: React.FC<Props> = ({
 
   return <section className="space-y-6 max-w-3xl">
     <h1 className="text-2xl font-bold">Use this service in PraiseAV</h1>
-    <p>The Suite plans services and exports a .praiseav file. It does not control a live projector or automatically sync with the desktop app.</p>
+    <p>The Suite plans services and exports a .praiseav file. It does not control a live projector. Choose PraiseAV’s Services folder to send a service file there without downloading and moving it yourself.</p>
     <ol className="list-decimal pl-6 space-y-2 text-sm">
       <li>Choose the service plan in the Services page.</li>
-      <li>Download its .praiseav file below.</li>
-      <li>Open the file in PraiseAV on the church computer, or put it in a shared PraiseAV Services folder.</li>
+      <li>In PraiseAV Windows, open More → Church sharing to see or choose its Services folder.</li>
+      <li>Use Send to PraiseAV folder below and choose that same folder in this browser. If it is a synced OneDrive or Google Drive folder, the file can reach the church computer through that service.</li>
+      <li>Open the service in PraiseAV Windows. Reopen it after sending a later update.</li>
       <li>Attach any visiting speaker presentation or media file on the desktop before the service. The export includes its name, not its contents.</li>
     </ol>
+    {canChooseFolder && <div className="space-y-2 rounded border border-sky-500/40 p-4">
+      <p className="text-sm">{folderLink ? `Folder remembered in this browser: ${folderLink.directory.name}` : 'Choose the Services folder once; this browser can remember it for later transfers.'}</p>
+      <div className="flex flex-wrap gap-2">
+        <button type="button" disabled={!activePlan || busy} onClick={sendToFolder}
+          className="px-4 py-2 rounded bg-sky-600 text-white disabled:opacity-50">
+          {busy ? 'Saving…' : 'Send to PraiseAV folder'}
+        </button>
+        {folderLink && <button type="button" disabled={busy} onClick={changeFolder} className="px-3 py-2 rounded border border-slate-500 disabled:opacity-50">Change folder</button>}
+        {folderLink && <button type="button" disabled={busy} onClick={forgetFolder} className="px-3 py-2 rounded border border-slate-500 disabled:opacity-50">Forget folder</button>}
+      </div>
+      <p className="text-xs text-slate-600 dark:text-slate-300">Saving again replaces only the file this browser last sent. If someone changes that file in PraiseAV or another computer, the Suite stops and asks you to review it.</p>
+    </div>}
     <button type="button" disabled={!activePlan} onClick={download}
-      className="px-4 py-2 rounded bg-sky-600 text-white disabled:opacity-50">
-      {activePlan ? 'Download ' + activePlan.title + ' .praiseav' : 'Create a service first'}
+      className="px-4 py-2 rounded border border-slate-500 disabled:opacity-50">
+      {activePlan ? 'Download ' + activePlan.title + ' .praiseav file' : 'Create a service first'}
     </button>
-    <p className="text-sm text-slate-600 dark:text-slate-300">For automatic file sharing, each church can choose a local Google Drive or OneDrive folder in PraiseAV’s Church sharing setup. That choice is optional.</p>
+    {!canChooseFolder && <p className="text-sm text-slate-600 dark:text-slate-300">This browser does not support direct folder access. Download the file and move it to PraiseAV’s Services folder.</p>}
+    {transferMessage && <p role="status" className="text-sm">{transferMessage}</p>}
     <div className="border-t pt-4">
       <h2 className="font-semibold mb-2">Suite display theme</h2>
       <div className="flex flex-wrap gap-2">{PRAISEAV_THEME_PRESETS.map((preset) =>

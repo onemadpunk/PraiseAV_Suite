@@ -44,3 +44,7 @@ test('Section headings alone are not usable song words', () => {
   const exported = toPraiseAVService(plan, [{ ...song, chordPro: '[Verse 1]\n\n[Chorus]' }]);
   assert.equal(exported.items[0].type, 'designed');
 });
+
+test('repeating an export leaves unchanged service files byte-for-byte stable', () => {
+  assert.equal(JSON.stringify(toPraiseAVService(plan, [song])), JSON.stringify(toPraiseAVService(plan, [song])));
+});
