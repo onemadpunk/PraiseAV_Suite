@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import {
   ArrowDown,
   ArrowUp,
+  CalendarDays,
   Download,
   MonitorPlay,
   Plus,
@@ -109,7 +110,33 @@ export const ServicesWorkspace: React.FC<ServicesWorkspaceProps> = ({
     setShowNewPlanForm(false);
   };
 
-  if (!activePlan) return <div className="space-y-3"><h1 className="text-xl font-bold">No services yet</h1><p>Create a service plan for this church. Each service can have its own songs and sermon.</p><button className="px-4 py-2 rounded bg-sky-600 text-white" onClick={() => setShowNewPlanForm(true)}>Create service</button>{showNewPlanForm && <form onSubmit={handleCreatePlanSubmit} className="space-y-2"><input className="p-2 border text-slate-900" required placeholder="Service name" value={planTitleInput} onChange={e => setPlanTitleInput(e.target.value)} /><input type="date" className="p-2 border text-slate-900" value={planDateInput} onChange={e => setPlanDateInput(e.target.value)} /><input type="time" className="p-2 border text-slate-900" value={planTimeInput} onChange={e => setPlanTimeInput(e.target.value)} /><button type="submit" className="p-2 border rounded">Save service</button></form>}</div>;
+  if (!activePlan) return (
+    <div className="space-y-6">
+      <div className="suite-page-header">
+        <div className="suite-eyebrow">Worship planning / Services</div>
+        <h1>Make space for what matters</h1>
+        <p>Create your first service plan to bring the order, people and PraiseAV cues together.</p>
+      </div>
+      <section className="suite-empty-state" aria-labelledby="first-service-title">
+        <div className="suite-empty-icon"><CalendarDays aria-hidden="true" size={28} /></div>
+        <div className="suite-eyebrow">Your church workspace is ready</div>
+        <h2 id="first-service-title">Start with a service</h2>
+        <p>Add a date and gathering time. You can build the order and add songs and volunteers afterwards.</p>
+        {!showNewPlanForm && <button type="button" className="suite-empty-primary" onClick={() => setShowNewPlanForm(true)}><Plus size={16} /> Create first service plan</button>}
+        {showNewPlanForm && (
+          <form onSubmit={handleCreatePlanSubmit} className="suite-empty-form">
+            <label>Service name<input required placeholder="Sunday morning" value={planTitleInput} onChange={(e) => setPlanTitleInput(e.target.value)} /></label>
+            <label>Date<input required type="date" value={planDateInput} onChange={(e) => setPlanDateInput(e.target.value)} /></label>
+            <label>Start time<input required type="time" value={planTimeInput} onChange={(e) => setPlanTimeInput(e.target.value)} /></label>
+            <div className="suite-empty-form-actions">
+              <button type="button" onClick={() => setShowNewPlanForm(false)}>Cancel</button>
+              <button type="submit" className="suite-empty-primary">Create service</button>
+            </div>
+          </form>
+        )}
+      </section>
+    </div>
+  );
 
   const selectedMember = members.find((member) => member.id === selectedMemberId) || members[0];
   const assignmentWarnings = selectedMember ? rotaConflicts(selectedMember, activePlan, plans) : [];
