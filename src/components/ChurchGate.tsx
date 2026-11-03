@@ -44,6 +44,7 @@ export function ChurchGate({ onReady, onDemo }: { onReady: (session: ChurchSessi
   const [rulesPublished, setRulesPublished] = useState(false);
   const [hasLegacy] = useState(() => Boolean(readLegacySnapshot()));
   const siteDomain = window.location.hostname;
+  const directoryAvailable = siteDomain === 'praiseav-suite.web.app' || siteDomain === 'suite.praiseav.com';
   let projectId = '';
   try {
     const candidate = parseFirebaseConfigText(configText).projectId;
@@ -286,7 +287,7 @@ export function ChurchGate({ onReady, onDemo }: { onReady: (session: ChurchSessi
         ) : (
           <>
             <p>Find your church first. If it already uses Suite, ask its administrator for the church link. Only one person needs to set up a new church.</p>
-            <section className="rounded-xl border border-slate-200 dark:border-slate-700 p-4 space-y-3" aria-label="Find your church">
+            {directoryAvailable ? <section className="rounded-xl border border-slate-200 dark:border-slate-700 p-4 space-y-3" aria-label="Find your church">
               <h2 className="font-semibold text-lg">Find your church</h2>
               <form className="space-y-3" onSubmit={(event) => { event.preventDefault(); void searchChurch(); }}>
                 <label className="block text-sm">Church name<input required readOnly={Boolean(reservedId)} className="w-full mt-1 p-2 border border-slate-300 dark:border-slate-600 rounded bg-white dark:bg-slate-800" value={churchName} onChange={(event) => { setChurchName(event.target.value); setSearched(false); }} /></label>
@@ -298,7 +299,7 @@ export function ChurchGate({ onReady, onDemo }: { onReady: (session: ChurchSessi
                 {matches.some((church) => church.id === directoryId(churchName, town)) ? <p>If this is a separate congregation with the same name, add its neighbourhood to the church name and search again.</p> : <button type="button" className="px-4 py-2 rounded border border-sky-500 disabled:opacity-50" disabled={busy} onClick={registerChurch}>Set up this church</button>}
               </div>}
               {reservedId && <div className="text-sm space-y-2"><p className="text-emerald-700 dark:text-emerald-300">Church registration reserved for about two weeks. Continue the one-time setup below.</p><button type="button" className="underline disabled:opacity-50" disabled={busy} onClick={async () => { setBusy(true); try { await cancelChurchReservation(reservedId); setReservedId(null); setOwnerEmail(''); setSearched(false); setError(''); } catch (failure) { setError(String(failure)); } finally { setBusy(false); } }}>Change church name or town</button></div>}
-            </section>
+            </section> : <p className="rounded-xl border border-sky-300 dark:border-sky-800 p-4 text-sm">Church lookup and registration are available on the <a className="underline text-sky-600" href="https://praiseav-suite.web.app/">PraiseAV Suite pilot site</a>.</p>}
             {reservedId && <>
             <section aria-label="Church setup checklist" className="rounded-xl border border-sky-300 dark:border-sky-800 p-4 space-y-3 text-sm">
               <h2 className="font-semibold text-lg">Church setup checklist</h2>
