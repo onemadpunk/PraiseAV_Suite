@@ -1,7 +1,7 @@
 // Each church installs these rules in its own Firebase project. A user owning
 // the Google account named here can administer the church from a fresh project;
 // every other person must be approved by an administrator in the Suite.
-export function churchRules(ownerEmail: string): string {
+export function churchRules(ownerEmail: string, includeDirectory = false): string {
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(ownerEmail)) throw new Error('Enter a valid owner email first.');
   const owner = JSON.stringify(ownerEmail.trim().toLowerCase());
   return `rules_version = '2';
@@ -24,6 +24,48 @@ service cloud.firestore {
     function admin() { return owner() || hasRole('admin'); }
     function validRecord(id) { return request.resource.data.id == id; }
 
+    ${includeDirectory ? `// PraiseAV's small registration index. No church records are stored here.
+    function validPendingChurch(id) {
+      return verified()
+        && request.resource.data.keys().hasOnly(['churchName', 'town', 'nameKey', 'townKey', 'status', 'ownerUid', 'expiresAt'])
+        && request.resource.data.keys().hasAll(['churchName', 'town', 'nameKey', 'townKey', 'status', 'ownerUid', 'expiresAt'])
+        && request.resource.data.churchName is string && request.resource.data.churchName.size() <= 100
+        && request.resource.data.town is string && request.resource.data.town.size() <= 100
+        && request.resource.data.nameKey is string && request.resource.data.nameKey.matches('^[a-z0-9-]{3,80}$')
+        && request.resource.data.townKey is string && request.resource.data.townKey.matches('^[a-z0-9-]{2,80}$')
+        && id == request.resource.data.nameKey + '--' + request.resource.data.townKey
+        && request.resource.data.status == 'setting-up'
+        && request.resource.data.ownerUid == request.auth.uid
+        && request.resource.data.expiresAt is timestamp
+        && request.resource.data.expiresAt > request.time
+        && request.resource.data.expiresAt <= request.time + duration.value(14, 'd');
+    }
+    match /churchDirectory/{id} {
+      allow read: if true;
+      allow create: if validPendingChurch(id);
+      allow update: if (
+        (resource.data.status == 'cancelled' || (
+          resource.data.status == 'setting-up'
+          && resource.data.expiresAt is timestamp
+          && resource.data.expiresAt <= request.time
+        ))
+        && validPendingChurch(id)
+      ) || (
+        verified() && resource.data.ownerUid == request.auth.uid
+        && resource.data.status == 'setting-up'
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'projectId', 'expiresAt'])
+        && request.resource.data.status == 'ready'
+        && request.resource.data.projectId is string
+        && request.resource.data.projectId.matches('^[a-z0-9-]{6,100}$')
+        && request.resource.data.expiresAt == null
+      ) || (
+        verified() && resource.data.ownerUid == request.auth.uid
+        && resource.data.status == 'setting-up'
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status'])
+        && request.resource.data.status == 'cancelled'
+      );
+      allow delete: if false;
+    }` : ''}
     match /memberships/{uid} {
       allow read: if admin() || (verified() && request.auth.uid == uid);
       allow create, update: if admin() && request.resource.data.uid == uid

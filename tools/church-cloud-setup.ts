@@ -76,7 +76,7 @@ export function setupFiles(options: SetupOptions) {
       } } },
       firestore: { database: '(default)', location: options.location, edition: 'standard', rules: 'firestore.rules' },
     }, null, 2) + '\n',
-    'firestore.rules': churchRules(options.owner) + '\n',
+    'firestore.rules': churchRules(options.owner, options.project === 'praiseav-suite') + '\n',
   };
 }
 

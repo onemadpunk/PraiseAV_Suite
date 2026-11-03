@@ -9,6 +9,7 @@ import {
   signInChurch, signInChurchEmail, signOutChurch,
 } from '../services/churchFirebase';
 import { churchRules } from '../services/churchRules';
+import { DirectoryChurch, cancelChurchReservation, directoryId, findChurches, finishChurchRegistration, refreshSavedReservation, reserveChurch, savedReservation } from '../services/churchDirectory';
 import { readLegacySnapshot } from '../services/legacyData';
 import { OwnProfileForm } from './OwnProfileForm';
 
@@ -21,8 +22,12 @@ function signInError(failure: unknown): string {
 
 export function ChurchGate({ onReady, onDemo }: { onReady: (session: ChurchSession) => void; onDemo: () => void }) {
   const [connection, setConnection] = useState<ChurchConnection | null>(() => readChurchConnection());
-  const [churchName, setChurchName] = useState('');
-  const [ownerEmail, setOwnerEmail] = useState('');
+  const [churchName, setChurchName] = useState(() => savedReservation()?.churchName || '');
+  const [town, setTown] = useState(() => savedReservation()?.town || '');
+  const [matches, setMatches] = useState<DirectoryChurch[]>([]);
+  const [searched, setSearched] = useState(false);
+  const [reservedId, setReservedId] = useState<string | null>(() => savedReservation()?.id || null);
+  const [ownerEmail, setOwnerEmail] = useState(() => savedReservation()?.ownerEmail || '');
   const [configText, setConfigText] = useState('');
   const [userName, setUserName] = useState('');
   const [email, setEmail] = useState('');
@@ -39,6 +44,7 @@ export function ChurchGate({ onReady, onDemo }: { onReady: (session: ChurchSessi
   const [rulesPublished, setRulesPublished] = useState(false);
   const [hasLegacy] = useState(() => Boolean(readLegacySnapshot()));
   const siteDomain = window.location.hostname;
+  const directoryAvailable = siteDomain === 'praiseav-suite.web.app' || siteDomain === 'suite.praiseav.com';
   let projectId = '';
   try {
     const candidate = parseFirebaseConfigText(configText).projectId;
@@ -97,18 +103,36 @@ export function ChurchGate({ onReady, onDemo }: { onReady: (session: ChurchSessi
 
   useEffect(() => { setRulesPublished(false); }, [configText, ownerEmail]);
 
+  useEffect(() => {
+    if (connection || !reservedId) return;
+    let mounted = true;
+    void refreshSavedReservation().then((active) => {
+      if (mounted && !active) { setReservedId(null); setOwnerEmail(''); setSearched(false); }
+    }).catch((failure) => { if (mounted) setError(`Could not check the saved church registration. ${String(failure)}`); });
+    return () => { mounted = false; };
+  }, [connection, reservedId]);
+
   const connect = async () => {
     if (busy) return;
+    if (!reservedId) { setError('Register this church before connecting.'); return; }
+    try { if (directoryId(churchName, town) !== reservedId) { setError('Use the same church name and town you registered before connecting.'); return; } }
+    catch (failure) { setError(String(failure)); return; }
     let parsed: ChurchConnection;
-    try { parsed = parseChurchConnection({ config: parseFirebaseConfigText(configText), churchName, ownerEmail }); }
+    try {
+      parsed = parseChurchConnection({ config: parseFirebaseConfigText(configText), churchName, ownerEmail });
+      if (parsed.config.projectId === 'praiseav-suite') throw new Error('Create a Firebase project owned by your church. The PraiseAV pilot project cannot hold another church’s records.');
+    }
     catch (failure) { setError(String(failure)); return; }
     setBusy(true);
     try {
+      const owner = await signInChurch(parsed);
+      if (!owner.emailVerified || owner.email?.toLowerCase() !== parsed.ownerEmail) throw new Error('Sign in with the same Google account that registered this church.');
+      await getDoc(doc(getFirestore(churchApp(parsed)), 'memberships', owner.uid));
+      await finishChurchRegistration(reservedId, parsed.config.projectId, parsed.ownerEmail);
       saveChurchConnection(parsed);
       setConnection(parsed);
       setError('');
-      await signInChurch(parsed);
-    } catch (failure) { setError(signInError(failure)); }
+    } catch (failure) { setError(`Could not finish church setup. ${String(failure)}`); }
     finally { setBusy(false); }
   };
 
@@ -183,6 +207,27 @@ export function ChurchGate({ onReady, onDemo }: { onReady: (session: ChurchSessi
     setRulesText('');
   };
 
+  const searchChurch = async () => {
+    if (busy) return;
+    setBusy(true);
+    setError('');
+    try {
+      directoryId(churchName, town);
+      setMatches((await findChurches(churchName)).filter((church) => church.status !== 'cancelled' && (church.status === 'ready' || !church.expiresAt || church.expiresAt.toMillis() > Date.now())));
+      setSearched(true);
+    } catch (failure) { setError(String(failure)); }
+    finally { setBusy(false); }
+  };
+
+  const registerChurch = async () => {
+    if (busy) return;
+    setBusy(true);
+    setError('');
+    try { const reservation = await reserveChurch(churchName, town); setReservedId(reservation.id); setOwnerEmail(reservation.ownerEmail); }
+    catch (failure) { setError(String(failure)); }
+    finally { setBusy(false); }
+  };
+
   return (
     <main className="min-h-screen bg-slate-50 dark:bg-[#0B0F19] text-slate-900 dark:text-slate-100 p-6">
       <div className="max-w-2xl mx-auto bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-2xl p-6 space-y-5">
@@ -241,7 +286,21 @@ export function ChurchGate({ onReady, onDemo }: { onReady: (session: ChurchSessi
           </>
         ) : (
           <>
-            <p>One church administrator sets up shared records once. Everyone else signs in through the church link they receive. PraiseAV Windows works without this setup.</p>
+            <p>Find your church first. If it already uses Suite, ask its administrator for the church link. Only one person needs to set up a new church.</p>
+            {directoryAvailable ? <section className="rounded-xl border border-slate-200 dark:border-slate-700 p-4 space-y-3" aria-label="Find your church">
+              <h2 className="font-semibold text-lg">Find your church</h2>
+              <form className="space-y-3" onSubmit={(event) => { event.preventDefault(); void searchChurch(); }}>
+                <label className="block text-sm">Church name<input required readOnly={Boolean(reservedId)} className="w-full mt-1 p-2 border border-slate-300 dark:border-slate-600 rounded bg-white dark:bg-slate-800" value={churchName} onChange={(event) => { setChurchName(event.target.value); setSearched(false); }} /></label>
+                <label className="block text-sm">Town or city<input required readOnly={Boolean(reservedId)} className="w-full mt-1 p-2 border border-slate-300 dark:border-slate-600 rounded bg-white dark:bg-slate-800" value={town} onChange={(event) => { setTown(event.target.value); setSearched(false); }} /></label>
+                {!reservedId && <button type="submit" className="px-4 py-2 rounded bg-sky-600 text-white disabled:opacity-50" disabled={busy}>Find church</button>}
+              </form>
+              {searched && !reservedId && <div className="space-y-2 text-sm">
+                {matches.length > 0 ? <><p>Churches with this name:</p><ul className="space-y-2">{matches.map((church) => <li key={church.id} className="rounded border border-slate-200 dark:border-slate-700 p-3"><strong>{church.churchName}</strong> · {church.town}<p className="mt-1">{church.status === 'ready' ? 'Already using Suite. Ask your church administrator for its link so you can request access.' : 'Setup is in progress. Ask the person setting it up for the church link.'}</p></li>)}</ul></> : <p>No church with this name was found.</p>}
+                {matches.some((church) => church.id === directoryId(churchName, town)) ? <p>If this is a separate congregation with the same name, add its neighbourhood to the church name and search again.</p> : <button type="button" className="px-4 py-2 rounded border border-sky-500 disabled:opacity-50" disabled={busy} onClick={registerChurch}>Set up this church</button>}
+              </div>}
+              {reservedId && <div className="text-sm space-y-2"><p className="text-emerald-700 dark:text-emerald-300">Church registration reserved for about two weeks. Continue the one-time setup below.</p><button type="button" className="underline disabled:opacity-50" disabled={busy} onClick={async () => { setBusy(true); try { await cancelChurchReservation(reservedId); setReservedId(null); setOwnerEmail(''); setSearched(false); setError(''); } catch (failure) { setError(String(failure)); } finally { setBusy(false); } }}>Change church name or town</button></div>}
+            </section> : <p className="rounded-xl border border-sky-300 dark:border-sky-800 p-4 text-sm">Church lookup and registration are available on the <a className="underline text-sky-600" href="https://praiseav-suite.web.app/">PraiseAV Suite pilot site</a>.</p>}
+            {reservedId && <>
             <section aria-label="Church setup checklist" className="rounded-xl border border-sky-300 dark:border-sky-800 p-4 space-y-3 text-sm">
               <h2 className="font-semibold text-lg">Church setup checklist</h2>
               <ol className="list-decimal pl-6 space-y-3">
@@ -254,12 +313,12 @@ export function ChurchGate({ onReady, onDemo }: { onReady: (session: ChurchSessi
               </ol>
               <p className="text-xs">The project belongs to your church. Only the administrator needs Firebase Console; members do not.</p>
             </section>
-            <label className="block text-sm">Church name<input className="w-full mt-1 p-2 border border-slate-300 dark:border-slate-600 rounded bg-white dark:bg-slate-800 text-slate-900 dark:text-white" value={churchName} onChange={(e) => setChurchName(e.target.value)} /></label>
-            <label className="block text-sm">Church administrator’s Google email<input type="email" className="w-full mt-1 p-2 border border-slate-300 dark:border-slate-600 rounded bg-white dark:bg-slate-800 text-slate-900 dark:text-white" value={ownerEmail} onChange={(e) => setOwnerEmail(e.target.value)} /></label>
+            <label className="block text-sm">Church administrator’s Google email<input type="email" readOnly className="w-full mt-1 p-2 border border-slate-300 dark:border-slate-600 rounded bg-white dark:bg-slate-800 text-slate-900 dark:text-white" value={ownerEmail} /></label>
             <label className="block text-sm">Firebase Web app configuration<textarea className="w-full mt-1 p-2 border border-slate-300 dark:border-slate-600 rounded bg-white dark:bg-slate-800 text-slate-900 dark:text-white placeholder:text-slate-500 dark:placeholder:text-slate-400 font-mono text-xs" rows={6} value={configText} onChange={(e) => setConfigText(e.target.value)} placeholder="Paste the full Firebase code example here" /></label>
             {projectId && <p className="text-sm text-emerald-700 dark:text-emerald-400">Project found: <strong>{projectId}</strong>. The checklist now has direct links to its setup pages.</p>}
             {rulesText && <div className="space-y-2"><p className="text-sm">Your church-specific rules are ready. Copy them into Firestore → Rules and click Publish there.</p><button type="button" className="px-3 py-2 rounded border" onClick={() => navigator.clipboard.writeText(rulesText).catch(() => setError('Clipboard unavailable. Select and copy the rules from the box below.'))}>Copy security rules</button><textarea readOnly aria-label="Church security rules" className="w-full p-2 border border-slate-300 dark:border-slate-600 rounded bg-white dark:bg-slate-800 text-slate-900 dark:text-white placeholder:text-slate-500 dark:placeholder:text-slate-400 font-mono text-xs" rows={8} value={rulesText} /><label className="flex items-start gap-2 text-sm"><input type="checkbox" checked={rulesPublished} onChange={(e) => setRulesPublished(e.target.checked)} />I published these rules in Firestore.</label></div>}
             <button className="px-4 py-2 rounded bg-sky-600 text-white disabled:opacity-50" disabled={!rulesText || !rulesPublished || busy} onClick={connect}>Connect and sign in</button>
+            </>}
             {hasLegacy && <p className="text-sm border border-amber-400 p-3">Older Suite records are still in this browser. Open them below and download a backup before moving them to a church project. They are not automatically uploaded.</p>}
             <button className="underline text-sm" onClick={onDemo}>{hasLegacy ? "Open existing browser records" : "Try the sample church (new changes are not saved)"}</button>
           </>

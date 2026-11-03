@@ -14,7 +14,9 @@ If moving to `suite.praiseav.com`, add it as a custom domain for the existing Fi
 
 Only one administrator per church uses Firebase Console. Volunteers and congregation members receive a church link; they do not create Firebase projects. PraiseAV Windows works without Firebase. The Suite's sample mode is for exploration and does not save new changes.
 
-Open the Suite's **Church setup checklist** alongside Firebase Console. The checklist recognises the project ID when you paste the Web app code, provides direct links to that project's pages, and generates security rules automatically after you enter the church name and administrator email.
+At the Suite start page, enter the church name and town and choose **Find church**. If a church with that name is already registered, ask its administrator for the church link. They can approve your access; you do not need another Firebase project. If it is a different congregation with the same name, add its neighbourhood to the name. If there is no match, choose **Set up this church** and sign in with the church administrator's Google account. This reserves the name and town for about two weeks while setup is completed. An unfinished reservation then expires without anyone at PraiseAV reviewing it.
+
+The Suite's **Church setup checklist** recognises the project ID when you paste the Web app code, provides direct links to that project's pages, and generates security rules automatically. The church administrator email is taken from the Google account that reserved the registration.
 
 ## 1. Create the church project
 
@@ -29,12 +31,14 @@ Firebase project creation is a guided manual step because doing it automatically
 
 ## 2. Install the church's rules
 
-1. On the Suite start page, enter the church name and the Google email of the administrator who created the project. Paste the Web app configuration if you have not already done so.
+1. On the Suite start page, reserve the church name and town, then paste the Web app configuration. Use the same Google account to create and connect the church project.
 2. The church-specific security rules appear automatically. Click Copy security rules.
 3. In Firebase Console, open Firestore → Rules. Replace the starter rules with the generated rules and publish them.
-4. Tick **I published these rules in Firestore** in the Suite checklist, then click **Connect and sign in** using the same administrator Google account.
+4. Tick **I published these rules in Firestore** in the Suite checklist, then click **Connect and sign in** using the same administrator Google account. The Suite completes the church's directory entry at this point.
 
 The owner email is embedded in the rules. Check it carefully before publishing. If it changes, the Firebase project owner can replace the rules in Firebase Console. Rules are maintained in each church project; when the Suite's rules change in a future release, administrators may need to publish the new version.
+
+The PraiseAV registration directory stores the church name, town, setup status and project ID only; it holds no church records or member contact details. A name and town match prevents ordinary accidental duplicate setups, but email verification cannot prove that someone officially represents a church. PraiseAV does not certify churches. See [church directory operations](church-directory.md).
 
 **Existing church projects upgrading to email registration:** open **Church access → Copy updated security rules**, paste them into Firestore → Rules, and publish. In Firebase Authentication → Sign-in method, enable **Email/Password**. Leave **Email link** off. The new private **My details** form cannot save until the updated rules are published. These changes do not require a paid Firebase plan.
 

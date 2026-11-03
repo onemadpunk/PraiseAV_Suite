@@ -1,0 +1,135 @@
+import { FirebaseApp, FirebaseOptions, getApp, getApps, initializeApp } from 'firebase/app';
+import { GoogleAuthProvider, getAuth, signInWithPopup } from 'firebase/auth';
+import { Timestamp, collection, doc, getDoc, getDocs, getFirestore, limit, query, runTransaction, where } from 'firebase/firestore';
+
+export type DirectoryChurch = {
+  id: string;
+  churchName: string;
+  town: string;
+  nameKey: string;
+  townKey: string;
+  status: 'setting-up' | 'ready' | 'cancelled';
+  ownerUid: string;
+  expiresAt?: Timestamp;
+  projectId?: string;
+};
+
+const RESERVATION_KEY = 'praiseav_suite_church_reservation_v1';
+const DIRECTORY_PROJECT = 'praiseav-suite';
+
+export function churchKey(value: string): string {
+  return value.trim().toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/[’']/g, '').replace(/\bst\.?\b/g, 'saint')
+    .replace(/&/g, 'and').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 80);
+}
+
+export function directoryId(churchName: string, town: string): string {
+  const name = churchKey(churchName);
+  const place = churchKey(town);
+  if (name.length < 3 || place.length < 2) throw new Error('Enter a church name and town to continue.');
+  return `${name}--${place}`;
+}
+
+async function directoryApp(): Promise<FirebaseApp> {
+  const name = 'praiseav-directory';
+  if (getApps().some((app) => app.name === name)) return getApp(name);
+  // Firebase Hosting exposes its public Web configuration at this reserved URL.
+  // The directory belongs to the PraiseAV pilot; church records stay elsewhere.
+  const response = await fetch('/__/firebase/init.json');
+  if (!response.ok) throw new Error('Church lookup is available at praiseav-suite.web.app. Open that address to register a church.');
+  const config = await response.json() as FirebaseOptions;
+  if (config.projectId !== DIRECTORY_PROJECT || !config.appId || !config.apiKey) {
+    throw new Error('Church lookup is not configured for this site.');
+  }
+  return initializeApp(config, name);
+}
+
+export async function findChurches(churchName: string): Promise<DirectoryChurch[]> {
+  const nameKey = churchKey(churchName);
+  if (nameKey.length < 3) throw new Error('Enter at least three letters of the church name.');
+  const db = getFirestore(await directoryApp());
+  const snapshot = await getDocs(query(collection(db, 'churchDirectory'), where('nameKey', '==', nameKey), limit(20)));
+  return snapshot.docs.map((entry) => ({ id: entry.id, ...entry.data() } as DirectoryChurch));
+}
+
+export function savedReservation(): { id: string; churchName: string; town: string; ownerEmail: string } | null {
+  try {
+    const raw = localStorage.getItem(RESERVATION_KEY);
+    if (!raw) return null;
+    const value = JSON.parse(raw);
+    return value && typeof value.id === 'string' && typeof value.churchName === 'string' && typeof value.town === 'string' && typeof value.ownerEmail === 'string' ? value : null;
+  } catch { return null; }
+}
+
+export async function refreshSavedReservation(): Promise<boolean> {
+  const saved = savedReservation();
+  if (!saved) return false;
+  const db = getFirestore(await directoryApp());
+  const snapshot = await getDoc(doc(db, 'churchDirectory', saved.id));
+  const reservation = snapshot.data() as DirectoryChurch | undefined;
+  const active = Boolean(reservation?.status === 'setting-up' && reservation.expiresAt && reservation.expiresAt.toMillis() > Date.now());
+  if (!active) localStorage.removeItem(RESERVATION_KEY);
+  return active;
+}
+
+export async function reserveChurch(churchName: string, town: string): Promise<{ id: string; ownerEmail: string }> {
+  const id = directoryId(churchName, town);
+  const app = await directoryApp();
+  const auth = getAuth(app);
+  await auth.authStateReady();
+  const provider = new GoogleAuthProvider();
+  provider.setCustomParameters({ prompt: 'select_account' });
+  const user = (await signInWithPopup(auth, provider)).user;
+  if (!user.emailVerified || !user.email) throw new Error('Verify your Google account email before registering a church.');
+  const db = getFirestore(app);
+  const reference = doc(db, 'churchDirectory', id);
+  await runTransaction(db, async (transaction) => {
+    const existing = await transaction.get(reference);
+    const prior = existing.data() as DirectoryChurch | undefined;
+    if (prior && (prior.status === 'ready' || (prior.status !== 'cancelled' && (!prior.expiresAt || prior.expiresAt.toMillis() > Date.now())))) {
+      throw new Error('This church already has a registration. Ask its administrator for the church link.');
+    }
+    transaction.set(reference, {
+      churchName: churchName.trim().slice(0, 100), town: town.trim().slice(0, 100),
+      nameKey: churchKey(churchName), townKey: churchKey(town), status: 'setting-up',
+      ownerUid: user.uid, expiresAt: Timestamp.fromMillis(Date.now() + 13 * 24 * 60 * 60 * 1000),
+    });
+  });
+  const ownerEmail = user.email.toLowerCase();
+  localStorage.setItem(RESERVATION_KEY, JSON.stringify({ id, churchName: churchName.trim(), town: town.trim(), ownerEmail }));
+  return { id, ownerEmail };
+}
+
+export async function finishChurchRegistration(id: string, projectId: string, ownerEmail: string): Promise<void> {
+  const app = await directoryApp();
+  const auth = getAuth(app);
+  await auth.authStateReady();
+  const user = auth.currentUser;
+  if (!user?.emailVerified || user.email?.toLowerCase() !== ownerEmail.toLowerCase()) throw new Error('Finish setup with the same Google account that registered this church.');
+  const db = getFirestore(app);
+  await runTransaction(db, async (transaction) => {
+    const reference = doc(db, 'churchDirectory', id);
+    const current = await transaction.get(reference);
+    if (!current.exists() || current.data().ownerUid !== user.uid || current.data().status !== 'setting-up') {
+      throw new Error('This church reservation is no longer yours. Search for the church again.');
+    }
+    transaction.update(reference, { status: 'ready', projectId, expiresAt: null });
+  });
+  localStorage.removeItem(RESERVATION_KEY);
+}
+
+export async function cancelChurchReservation(id: string): Promise<void> {
+  const app = await directoryApp();
+  const auth = getAuth(app);
+  await auth.authStateReady();
+  const user = auth.currentUser;
+  if (!user) throw new Error('Sign in again to change this registration.');
+  const db = getFirestore(app);
+  await runTransaction(db, async (transaction) => {
+    const reference = doc(db, 'churchDirectory', id);
+    const current = await transaction.get(reference);
+    if (!current.exists() || current.data().ownerUid !== user.uid || current.data().status !== 'setting-up') return;
+    transaction.update(reference, { status: 'cancelled' });
+  });
+  localStorage.removeItem(RESERVATION_KEY);
+}
