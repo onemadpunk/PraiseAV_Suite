@@ -1,0 +1,11 @@
+{
+  "firestore": {
+    "database": "(default)",
+    "rules": ".firebase-cli/pilot-directory.rules"
+  },
+  "hosting": {
+    "public": "dist",
+    "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
+    "rewrites": [{ "source": "**", "destination": "/index.html" }]
+  }
+}
