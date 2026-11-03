@@ -1,6 +1,6 @@
 # Set up a church-owned Suite
 
-A church administrator needs a Google account that the church controls. That account creates and owns the church's Firebase project. Each volunteer then signs in with their own Google account and waits for the administrator to approve access. There is no shared PraiseAV administrator account.
+A church administrator needs a Google account that the church controls. That account creates and owns the church's Firebase project. Members can use their own Google account or register with an ordinary email address and password. Email registrants verify their address before adding their own details or requesting access to shared church records. There is no shared PraiseAV administrator account.
 
 ## Where to open the Suite
 
@@ -12,7 +12,7 @@ If moving to `suite.praiseav.com`, add it as a custom domain for the existing Fi
 
 ## One-time setup for a church administrator
 
-Only one administrator per church uses Firebase Console. Volunteers and congregation members receive a church invitation link and sign in with Google; they do not create Firebase projects. PraiseAV Windows works without Firebase. The Suite's sample mode is for exploration and does not save new changes.
+Only one administrator per church uses Firebase Console. Volunteers and congregation members receive a church link; they do not create Firebase projects. PraiseAV Windows works without Firebase. The Suite's sample mode is for exploration and does not save new changes.
 
 Open the Suite's **Church setup checklist** alongside Firebase Console. The checklist recognises the project ID when you paste the Web app code, provides direct links to that project's pages, and generates security rules automatically after you enter the church name and administrator email.
 
@@ -21,7 +21,7 @@ Open the Suite's **Church setup checklist** alongside Firebase Console. The chec
 1. Open [Firebase Console](https://console.firebase.google.com/) in the church administrator's Google account.
 2. Create a project for this church. Choose the Spark plan if its limits fit the church. You do not need to enable Analytics for the Suite.
 3. In Project settings → General → Your apps, add a Web app named PraiseAV Suite. Leave Firebase Hosting unchecked. Paste the full code example containing `firebaseConfig` into the Suite checklist. The Firebase SDK is already installed in the Suite, so you do not need to run `npm install firebase`.
-4. Use the checklist's project-specific link to Authentication → Sign-in method. Choose Google, turn on Enable, set the public-facing name, select the church's support email, and save.
+4. Use the checklist's project-specific link to Authentication → Sign-in method. Enable Google for the church administrator. Enable Email/Password for members without Google accounts. Set the public-facing name, select the church's support email, and save. Leave the separate passwordless Email link switch off: on the Spark plan, Firebase currently limits its sign-in emails to five per day.
 5. Use the checklist's link to Authentication → Settings. Add the Suite website's domain to Authorised domains. Enter only the hostname, without `https://` or a path.
 6. Use the checklist's link to create a Cloud Firestore database. Choose Standard edition, ID `(default)`, a location near the church, and Production mode. London (`europe-west2`) is an option for UK churches. The database location cannot be changed later. Do not enter real records yet.
 
@@ -36,9 +36,13 @@ Firebase project creation is a guided manual step because doing it automatically
 
 The owner email is embedded in the rules. Check it carefully before publishing. If it changes, the Firebase project owner can replace the rules in Firebase Console. Rules are maintained in each church project; when the Suite's rules change in a future release, administrators may need to publish the new version.
 
+**Existing church projects upgrading to email registration:** open **Church access → Copy updated security rules**, paste them into Firestore → Rules, and publish. In Firebase Authentication → Sign-in method, enable **Email/Password**. Leave **Email link** off. The new private **My details** form cannot save until the updated rules are published. These changes do not require a paid Firebase plan.
+
 ## 3. Invite the team
 
-Open Church access, copy the church link, and send it to the people who need access. They sign in with their own Google accounts and request access. The church administrator selects roles and approves each request. The owner can remove access later.
+Open Church access, copy the church link, and send it to the people who need access. They sign in with Google or create an email-and-password account. Email registrants open Firebase's verification email, return to the Suite, and confirm verification there. Once verified, they can enter their own name, contact number and household details in **My details**; these details are visible only to that person and church administrators, not to other members. They then request access to shared church records. The church administrator selects roles and approves each request. The owner can remove access later. This approval is for reading shared church data; it does not prevent a verified person from entering their own details.
+
+If a member forgets their password, use **Reset password** on the sign-in page. Firebase sends the reset email. A church member does not need a Google account. A full member-facing address book with per-field visibility choices is still to be built; do not give the general `member` role access to the staff People collection.
 
 See [roles and privacy](roles-and-privacy.md) before approving access to children, pastoral notes, or giving records. The link itself is not permission to read church records.
 

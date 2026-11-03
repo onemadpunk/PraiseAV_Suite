@@ -1,14 +1,16 @@
-import { useEffect, useState } from 'react';
-import { getAuth, onAuthStateChanged } from 'firebase/auth';
+import { useCallback, useEffect, useState } from 'react';
+import { User, getAuth, onAuthStateChanged, reload } from 'firebase/auth';
 import { doc, getDoc, getFirestore, onSnapshot } from 'firebase/firestore';
 import {
   ChurchConnection, ChurchSession, churchApp,
   clearChurchConnection, getChurchRoles, parseChurchConnection, parseFirebaseConfigText,
-  readChurchConnection, requestChurchAccess, saveChurchConnection,
-  signInChurch, signOutChurch,
+  readChurchConnection, registerChurchEmail, requestChurchAccess,
+  resendChurchVerification, resetChurchEmailPassword, saveChurchConnection,
+  signInChurch, signInChurchEmail, signOutChurch,
 } from '../services/churchFirebase';
 import { churchRules } from '../services/churchRules';
 import { readLegacySnapshot } from '../services/legacyData';
+import { OwnProfileForm } from './OwnProfileForm';
 
 function signInError(failure: unknown): string {
   const code = failure && typeof failure === 'object' && 'code' in failure ? String(failure.code) : '';
@@ -23,6 +25,12 @@ export function ChurchGate({ onReady, onDemo }: { onReady: (session: ChurchSessi
   const [ownerEmail, setOwnerEmail] = useState('');
   const [configText, setConfigText] = useState('');
   const [userName, setUserName] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [passwordConfirmation, setPasswordConfirmation] = useState('');
+  const [emailMode, setEmailMode] = useState<'sign-in' | 'register'>('sign-in');
+  const [verificationPending, setVerificationPending] = useState(false);
+  const [notice, setNotice] = useState('');
   const [pending, setPending] = useState<ChurchSession | null>(null);
   const [rulesText, setRulesText] = useState('');
   const [error, setError] = useState('');
@@ -38,25 +46,36 @@ export function ChurchGate({ onReady, onDemo }: { onReady: (session: ChurchSessi
   } catch { /* No configuration has been pasted yet. */ }
   const projectBase = projectId ? `https://console.firebase.google.com/project/${projectId}` : '';
 
-  useEffect(() => {
+  const openSignedInUser = useCallback(async (user: User) => {
     if (!connection) return;
+    setUserName(user.displayName || user.email || 'Member');
+    if (!user.emailVerified) {
+      setVerificationPending(true);
+      setPending(null);
+      return;
+    }
+    setVerificationPending(false);
     const app = churchApp(connection);
     const db = getFirestore(app);
-    return onAuthStateChanged(getAuth(app), async (user) => {
+    try {
+      const { roles, owner } = await getChurchRoles(db, user, connection.ownerEmail);
+      if (owner) await getDoc(doc(db, 'memberships', user.uid)); // verifies that this project's rules are installed
+      const session = { connection, app, db, user, roles, owner };
+      if (roles.length) onReady(session);
+      else setPending(session);
       setError('');
-      if (!user) { setUserName(''); setPending(null); return; }
-      setUserName(user.displayName || user.email || 'Member');
-      try {
-        const { roles, owner } = await getChurchRoles(db, user, connection.ownerEmail);
-        if (owner) await getDoc(doc(db, 'memberships', user.uid)); // verifies that this project's rules are installed
-        const session = { connection, app, db, user, roles, owner };
-        if (roles.length) onReady(session);
-        else setPending(session);
-      } catch (failure) {
-        setError(`Could not open this church’s database. Check that Firestore and its security rules are set up. ${String(failure)}`);
-      }
-    }, (failure) => setError(failure.message));
+    } catch (failure) {
+      setError(`Could not open this church’s database. Check that Firestore and its security rules are set up. ${String(failure)}`);
+    }
   }, [connection, onReady]);
+
+  useEffect(() => {
+    if (!connection) return;
+    return onAuthStateChanged(getAuth(churchApp(connection)), (user) => {
+      if (!user) { setUserName(''); setPending(null); setVerificationPending(false); return; }
+      void openSignedInUser(user);
+    }, (failure) => setError(failure.message));
+  }, [connection, openSignedInUser]);
 
   useEffect(() => {
     if (!pending) return;
@@ -93,11 +112,74 @@ export function ChurchGate({ onReady, onDemo }: { onReady: (session: ChurchSessi
     finally { setBusy(false); }
   };
 
+  const submitEmail = async () => {
+    if (!connection || busy) return;
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) { setError('Enter your email address.'); return; }
+    if (!password) { setError('Enter your password.'); return; }
+    if (emailMode === 'register' && password.length < 6) { setError('Choose a password with at least 6 characters.'); return; }
+    if (emailMode === 'register' && password !== passwordConfirmation) { setError('The passwords do not match.'); return; }
+    setBusy(true);
+    setError('');
+    setNotice('');
+    try {
+      if (emailMode === 'register') {
+        await registerChurchEmail(connection, email, password);
+        setNotice(`We sent a verification link to ${email.trim()}. Open it, then return here and click “I verified my email”.`);
+      } else {
+        await signInChurchEmail(connection, email, password);
+      }
+      setPassword('');
+      setPasswordConfirmation('');
+    } catch (failure) {
+      const code = failure && typeof failure === 'object' && 'code' in failure ? String(failure.code) : '';
+      if (code === 'auth/operation-not-allowed') setError('Email sign-in is not enabled for this church yet. Ask the church administrator to enable Email/Password in Firebase Authentication.');
+      else if (code === 'auth/email-already-in-use') setError('This email already has an account. Choose Sign in, or reset your password.');
+      else if (code === 'auth/wrong-password' || code === 'auth/invalid-credential') setError('Email or password not recognised. Try again or reset your password.');
+      else setError(`Email sign-in failed. ${String(failure)}`);
+    } finally { setBusy(false); }
+  };
+
+  const checkVerification = async () => {
+    if (!connection || busy) return;
+    const user = getAuth(churchApp(connection)).currentUser;
+    if (!user) { setError('Sign in again, then check your email verification.'); return; }
+    setBusy(true);
+    try {
+      await reload(user);
+      await user.getIdToken(true);
+      if (!user.emailVerified) { setError('Your email is not verified yet. Open the link we sent, then try again.'); return; }
+      setNotice('Email verified. You can now ask your church administrator for access.');
+      await openSignedInUser(user);
+    } catch (failure) { setError(`Could not check your email verification. ${String(failure)}`); }
+    finally { setBusy(false); }
+  };
+
+  const sendVerificationAgain = async () => {
+    if (!connection || busy) return;
+    const user = getAuth(churchApp(connection)).currentUser;
+    if (!user) { setError('Sign in again to resend your verification email.'); return; }
+    setBusy(true);
+    try { await resendChurchVerification(user); setNotice(`We sent another verification link to ${user.email}.`); setError(''); }
+    catch (failure) { setError(`Could not send another verification email. ${String(failure)}`); }
+    finally { setBusy(false); }
+  };
+
+  const resetPassword = async () => {
+    if (!connection || busy) return;
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) { setError('Enter your email address first, then choose Reset password.'); return; }
+    setBusy(true);
+    try { await resetChurchEmailPassword(connection, email); setNotice('If this email has a password account, a reset link has been sent.'); setError(''); }
+    catch (failure) { setError(`Could not send a password reset link. ${String(failure)}`); }
+    finally { setBusy(false); }
+  };
+
   const switchChurch = async () => {
     if (connection) await signOutChurch(connection).catch(() => {});
     clearChurchConnection();
     setConnection(null);
     setPending(null);
+    setVerificationPending(false);
+    setRequested(false);
     setRulesText('');
   };
 
@@ -111,11 +193,20 @@ export function ChurchGate({ onReady, onDemo }: { onReady: (session: ChurchSessi
         {connection ? (
           <>
             <p><strong>{connection.churchName}</strong> owns its Firebase project and church records.</p>
-            {userName ? <p>Signed in as {userName}</p> : <p>Sign in with your own Google account to request or use church access.</p>}
-            {busy && !pending && <p role="status" className="text-sm text-sky-700 dark:text-sky-300">Complete sign-in in the Google window. This page will continue when you finish.</p>}
-            {pending ? (
+            {userName ? <p>Signed in as {userName}</p> : <p>Sign in with Google or an email address to join this church.</p>}
+            {verificationPending ? (
+              <div className="space-y-3 rounded-xl border border-sky-300 dark:border-sky-800 p-4">
+                <h2 className="font-semibold">Verify your email</h2>
+                <p className="text-sm">Open the verification link sent to {userName}. Then return here to continue. You cannot request church access until your email is verified.</p>
+                <div className="flex flex-wrap gap-3">
+                  <button type="button" className="px-4 py-2 rounded bg-sky-600 text-white disabled:opacity-50" disabled={busy} onClick={checkVerification}>I verified my email</button>
+                  <button type="button" className="px-4 py-2 rounded border disabled:opacity-50" disabled={busy} onClick={sendVerificationAgain}>Resend verification email</button>
+                </div>
+              </div>
+            ) : pending ? (
               <div className="space-y-3">
-                <p>Your church administrator has not approved your account yet.</p>
+                <p>You can add your own details now. Your church administrator must approve access before you can view shared church records.</p>
+                <OwnProfileForm session={pending} />
                 <button className="px-4 py-2 rounded bg-sky-600 text-white disabled:opacity-50" disabled={busy || requested} onClick={async () => {
                   setBusy(true);
                   try { await requestChurchAccess(pending); setRequested(true); setError(''); }
@@ -125,12 +216,26 @@ export function ChurchGate({ onReady, onDemo }: { onReady: (session: ChurchSessi
                 <p className="text-sm">This page will open automatically after a church administrator approves you.</p>
               </div>
             ) : (
-              <button className="px-4 py-2 rounded bg-sky-600 text-white disabled:opacity-50" disabled={busy} onClick={async () => {
-                setBusy(true);
-                try { await signInChurch(connection); setError(''); }
-                catch (failure) { setError(signInError(failure)); }
-                finally { setBusy(false); }
-              }}>{busy ? 'Waiting for Google sign-in…' : 'Sign in with Google'}</button>
+              <div className="space-y-4">
+                <button className="px-4 py-2 rounded bg-sky-600 text-white disabled:opacity-50" disabled={busy} onClick={async () => {
+                  setBusy(true);
+                  try { await signInChurch(connection); setError(''); }
+                  catch (failure) { setError(signInError(failure)); }
+                  finally { setBusy(false); }
+                }}>Sign in with Google</button>
+                <div className="border-t border-slate-200 dark:border-slate-700 pt-4 space-y-3">
+                  <h2 className="font-semibold">Use your email address</h2>
+                  <div className="flex gap-2 text-sm"><button type="button" className={emailMode === 'sign-in' ? 'px-3 py-1.5 rounded bg-sky-600 text-white' : 'px-3 py-1.5 rounded border border-slate-400 dark:border-slate-600'} onClick={() => setEmailMode('sign-in')}>Sign in</button><button type="button" className={emailMode === 'register' ? 'px-3 py-1.5 rounded bg-sky-600 text-white' : 'px-3 py-1.5 rounded border border-slate-400 dark:border-slate-600'} onClick={() => setEmailMode('register')}>Create an account</button></div>
+                  <form className="space-y-3" onSubmit={(event) => { event.preventDefault(); void submitEmail(); }}>
+                    <label className="block text-sm">Email address<input type="email" autoComplete="email" required className="w-full mt-1 p-2 border border-slate-300 dark:border-slate-600 rounded bg-white dark:bg-slate-800" value={email} onChange={(event) => setEmail(event.target.value)} /></label>
+                    <label className="block text-sm">Password<input type="password" autoComplete={emailMode === 'register' ? 'new-password' : 'current-password'} required minLength={emailMode === 'register' ? 6 : undefined} className="w-full mt-1 p-2 border border-slate-300 dark:border-slate-600 rounded bg-white dark:bg-slate-800" value={password} onChange={(event) => setPassword(event.target.value)} /></label>
+                    {emailMode === 'register' && <label className="block text-sm">Confirm password<input type="password" autoComplete="new-password" required minLength={6} className="w-full mt-1 p-2 border border-slate-300 dark:border-slate-600 rounded bg-white dark:bg-slate-800" value={passwordConfirmation} onChange={(event) => setPasswordConfirmation(event.target.value)} /></label>}
+                    <button type="submit" className="px-4 py-2 rounded border border-sky-500 disabled:opacity-50" disabled={busy}>{emailMode === 'register' ? 'Create account and verify email' : 'Sign in with email'}</button>
+                  </form>
+                  {emailMode === 'sign-in' && <button type="button" className="underline text-sm" disabled={busy} onClick={resetPassword}>Reset password</button>}
+                  <p className="text-xs text-slate-600 dark:text-slate-400">Email accounts need the church to enable Email/Password in Firebase Authentication. No Google account is required.</p>
+                </div>
+              </div>
             )}
             <button className="ml-3 underline text-sm" onClick={switchChurch}>Use another church</button>
           </>
@@ -142,7 +247,7 @@ export function ChurchGate({ onReady, onDemo }: { onReady: (session: ChurchSessi
               <ol className="list-decimal pl-6 space-y-3">
                 <li><a className="underline text-sky-600" href="https://console.firebase.google.com/" target="_blank" rel="noreferrer">Create a Firebase project ↗</a> using the church’s Google account. Choose the free Spark plan; leave AI and Analytics off.</li>
                 <li>In Project settings → General → Your apps, register a Web app called PraiseAV Suite. Leave Firebase Hosting unchecked. Paste the full <code>firebaseConfig</code> code example below. There is no need to run <code>npm install</code>.</li>
-                <li>Enable Google sign-in in {projectBase ? <a className="underline text-sky-600" href={`${projectBase}/authentication/providers`} target="_blank" rel="noreferrer">Authentication → Sign-in method ↗</a> : 'Authentication → Sign-in method'}. Set the public name to PraiseAV Suite and choose the church support email.</li>
+                <li>In {projectBase ? <a className="underline text-sky-600" href={`${projectBase}/authentication/providers`} target="_blank" rel="noreferrer">Authentication → Sign-in method ↗</a> : 'Authentication → Sign-in method'}, enable Google for the church administrator and Email/Password for members without Google accounts. Leave passwordless Email link off; its Spark email quota is too small for normal church sign-in. Set the public name to PraiseAV Suite and choose the church support email.</li>
                 <li>In {projectBase ? <a className="underline text-sky-600" href={`${projectBase}/authentication/settings`} target="_blank" rel="noreferrer">Authentication → Settings ↗</a> : 'Authentication → Settings'}, add <code>{siteDomain}</code> under Authorised domains. Enter only the domain, without <code>https://</code> or a path.</li>
                 <li>{projectBase ? <a className="underline text-sky-600" href={`${projectBase}/firestore`} target="_blank" rel="noreferrer">Create Cloud Firestore ↗</a> : 'Create Cloud Firestore'} using Standard edition, database ID <code>(default)</code>, a location near your church, and Production mode. Do not add real records yet.</li>
                 <li>Copy the security rules generated below into Firestore → Rules and publish them. Then connect and sign in.</li>
@@ -160,6 +265,7 @@ export function ChurchGate({ onReady, onDemo }: { onReady: (session: ChurchSessi
           </>
         )}
         <p className="text-sm"><a className="underline" href="https://github.com/onemadpunk/PraiseAV_Suite/blob/main/docs/church-setup.md" target="_blank" rel="noreferrer">Full setup guide</a> · <a className="underline" href="https://praiseav.com/privacy.html" target="_blank" rel="noreferrer">Privacy policy</a></p>
+        {notice && <p role="status" className="text-emerald-700 dark:text-emerald-300 text-sm">{notice}</p>}
         {error && <p role="alert" className="text-red-600 text-sm break-words">{error}</p>}
       </div>
     </main>

@@ -33,6 +33,7 @@ import {
 import { ServicesWorkspace } from './components/ServicesWorkspace';
 import { SongLibraryWorkspace } from './components/SongLibraryWorkspace';
 import { MusicStandWorkspace } from './components/MusicStandWorkspace';
+import { OwnProfileForm } from './components/OwnProfileForm';
 import {
   INITIAL_CHECKINS,
   INITIAL_DONATIONS,
@@ -101,6 +102,7 @@ function SuiteWorkspace({ session, onExit }: { session: ChurchSession | null; on
   const [roomBookings, setRoomBookings, bookingsReady] = useChurchCollection(session, 'bookings', legacy?.roomBookings || INITIAL_ROOM_BOOKINGS, setDataError);
   const [donations, setDonations, donationsReady] = useChurchCollection(session, 'donations', legacy?.donations || INITIAL_DONATIONS, setDataError);
   const [showAdmin, setShowAdmin] = useState(false);
+  const [showProfile, setShowProfile] = useState(false);
   const moduleAllowed = (module: ActiveModule) => !session || module === 'praise-av'
     || (module === 'services' && canRead(session, 'plans'))
     || (module === 'songs' && canRead(session, 'songs'))
@@ -271,6 +273,7 @@ function SuiteWorkspace({ session, onExit }: { session: ChurchSession | null; on
         {/* Account and export actions */}
         <div className="flex items-center gap-3 shrink-0">
           <a className="text-xs underline" href="https://github.com/onemadpunk/PraiseAV_Suite/blob/main/docs/workflows.md" target="_blank" rel="noreferrer">Help</a>
+          {session && <button type="button" className="px-3 py-2 text-xs border rounded-lg" onClick={() => setShowProfile(true)}>My details</button>}
           {session && (session.owner || session.roles.includes('admin')) && <button type="button" className="px-3 py-2 text-xs border rounded-lg" onClick={() => setShowAdmin(true)}>Church access</button>}
           <button
             type="button"
@@ -579,6 +582,7 @@ function SuiteWorkspace({ session, onExit }: { session: ChurchSession | null; on
         </main>
       </div>
       {showAdmin && session && <ChurchAdminPanel session={session} onClose={() => setShowAdmin(false)} />}
+      {showProfile && session && <div className="fixed inset-0 z-50 bg-black/70 p-4 overflow-y-auto" role="dialog" aria-modal="true" aria-label="My details"><div className="max-w-xl mx-auto bg-white dark:bg-[#111827] rounded-2xl p-6 space-y-4"><div className="flex justify-between items-center"><h2 className="text-xl font-bold">My details</h2><button type="button" aria-label="Close my details" onClick={() => setShowProfile(false)}>✕</button></div><OwnProfileForm session={session} /></div></div>}
     </div>
   );
 }

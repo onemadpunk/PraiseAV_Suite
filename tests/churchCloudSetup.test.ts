@@ -12,6 +12,7 @@ test('defaults to a plan that cannot change a project', () => {
   assert.throws(() => applyToExistingProject(options, () => { throw new Error('must not call CLI'); }), /--apply/);
   const files = setupFiles(options);
   assert.match(files['firestore.rules'], /owner@example\.org/);
+  assert.equal(JSON.parse(files['firebase.json']).auth.providers.emailPassword, true);
   assert.deepEqual(JSON.parse(files['firebase.json']).auth.providers.googleSignIn.authorizedRedirectUris, [
     'https://praiseav-suite.firebaseapp.com/__/auth/handler', 'https://onemadpunk.github.io',
   ]);

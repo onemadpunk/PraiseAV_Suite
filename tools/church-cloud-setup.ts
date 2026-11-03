@@ -62,7 +62,7 @@ export function parseOptions(args: string[]): SetupOptions {
 export function setupFiles(options: SetupOptions) {
   return {
     'firebase.json': JSON.stringify({
-      auth: { providers: { googleSignIn: {
+      auth: { providers: { emailPassword: true, googleSignIn: {
         oAuthBrandDisplayName: 'PraiseAV Suite',
         supportEmail: options.owner,
         // Firebase's Google OAuth handler is always required. The Suite origin
@@ -187,7 +187,7 @@ if (process.argv[1] && import.meta.url.endsWith(process.argv[1].replaceAll('\\',
       console.log(`  Church owner: ${options.owner}`);
       console.log(`  Suite domain: ${options.domain}`);
       console.log(`  Firestore: use existing (default), or create in ${options.location || '[choose --location]'}`);
-      console.log('  Configure Google sign-in, web app and church-specific security rules.');
+      console.log('  Configure Google and Email/Password sign-in, web app and church-specific security rules.');
       console.log('  No changes made. Run again with --apply after reviewing these choices.');
     } else {
       const result = applyToExistingProject(options);
