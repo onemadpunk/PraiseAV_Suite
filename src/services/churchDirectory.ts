@@ -1,6 +1,6 @@
 import { FirebaseApp, FirebaseOptions, getApp, getApps, initializeApp } from 'firebase/app';
 import { GoogleAuthProvider, getAuth, signInWithPopup } from 'firebase/auth';
-import { Timestamp, collection, doc, getDocs, getFirestore, limit, query, runTransaction, where } from 'firebase/firestore';
+import { Timestamp, collection, doc, getDoc, getDocs, getFirestore, limit, query, runTransaction, where } from 'firebase/firestore';
 
 export type DirectoryChurch = {
   id: string;
@@ -59,6 +59,17 @@ export function savedReservation(): { id: string; churchName: string; town: stri
     const value = JSON.parse(raw);
     return value && typeof value.id === 'string' && typeof value.churchName === 'string' && typeof value.town === 'string' && typeof value.ownerEmail === 'string' ? value : null;
   } catch { return null; }
+}
+
+export async function refreshSavedReservation(): Promise<boolean> {
+  const saved = savedReservation();
+  if (!saved) return false;
+  const db = getFirestore(await directoryApp());
+  const snapshot = await getDoc(doc(db, 'churchDirectory', saved.id));
+  const reservation = snapshot.data() as DirectoryChurch | undefined;
+  const active = Boolean(reservation?.status === 'setting-up' && reservation.expiresAt && reservation.expiresAt.toMillis() > Date.now());
+  if (!active) localStorage.removeItem(RESERVATION_KEY);
+  return active;
 }
 
 export async function reserveChurch(churchName: string, town: string): Promise<{ id: string; ownerEmail: string }> {

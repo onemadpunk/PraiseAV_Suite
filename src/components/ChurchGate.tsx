@@ -9,7 +9,7 @@ import {
   signInChurch, signInChurchEmail, signOutChurch,
 } from '../services/churchFirebase';
 import { churchRules } from '../services/churchRules';
-import { DirectoryChurch, cancelChurchReservation, directoryId, findChurches, finishChurchRegistration, reserveChurch, savedReservation } from '../services/churchDirectory';
+import { DirectoryChurch, cancelChurchReservation, directoryId, findChurches, finishChurchRegistration, refreshSavedReservation, reserveChurch, savedReservation } from '../services/churchDirectory';
 import { readLegacySnapshot } from '../services/legacyData';
 import { OwnProfileForm } from './OwnProfileForm';
 
@@ -101,6 +101,15 @@ export function ChurchGate({ onReady, onDemo }: { onReady: (session: ChurchSessi
   }, [configText, churchName, ownerEmail]);
 
   useEffect(() => { setRulesPublished(false); }, [configText, ownerEmail]);
+
+  useEffect(() => {
+    if (connection || !reservedId) return;
+    let mounted = true;
+    void refreshSavedReservation().then((active) => {
+      if (mounted && !active) { setReservedId(null); setOwnerEmail(''); setSearched(false); }
+    }).catch((failure) => { if (mounted) setError(`Could not check the saved church registration. ${String(failure)}`); });
+    return () => { mounted = false; };
+  }, [connection, reservedId]);
 
   const connect = async () => {
     if (busy) return;
