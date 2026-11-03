@@ -8,15 +8,16 @@ export function churchRules(ownerEmail: string): string {
 service cloud.firestore {
   match /databases/{database}/documents {
     function signedIn() { return request.auth != null; }
+    function verified() { return signedIn() && request.auth.token.email_verified == true; }
     function owner() {
-      return signedIn() && request.auth.token.email_verified == true
+      return verified()
         && request.auth.token.email == ${owner};
     }
     function membership() {
       return get(/databases/$(database)/documents/memberships/$(request.auth.uid));
     }
     function hasRole(role) {
-      return signedIn()
+      return verified()
         && exists(/databases/$(database)/documents/memberships/$(request.auth.uid))
         && role in membership().data.roles;
     }
@@ -24,18 +25,32 @@ service cloud.firestore {
     function validRecord(id) { return request.resource.data.id == id; }
 
     match /memberships/{uid} {
-      allow read: if admin() || (signedIn() && request.auth.uid == uid);
+      allow read: if admin() || (verified() && request.auth.uid == uid);
       allow create, update: if admin() && request.resource.data.uid == uid
         && request.resource.data.roles is list
         && request.resource.data.roles.hasOnly(['admin', 'planner', 'av', 'musician', 'people', 'kids', 'finance', 'member']);
       allow delete: if admin();
     }
     match /joinRequests/{uid} {
-      allow read: if admin() || (signedIn() && request.auth.uid == uid);
-      allow create, update: if signedIn() && request.auth.uid == uid
+      allow read: if admin() || (verified() && request.auth.uid == uid);
+      allow create, update: if verified() && request.auth.uid == uid
         && request.resource.data.uid == uid
         && request.resource.data.email == request.auth.token.email;
       allow delete: if admin();
+    }
+    match /profiles/{uid} {
+      allow read: if admin() || (verified() && request.auth.uid == uid);
+      allow create, update: if verified() && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly(['uid', 'email', 'displayName', 'contactNumber', 'householdName', 'familyNames', 'updatedAt'])
+        && request.resource.data.keys().hasAll(['uid', 'email', 'displayName', 'contactNumber', 'householdName', 'familyNames', 'updatedAt'])
+        && request.resource.data.uid == uid
+        && request.resource.data.email == request.auth.token.email
+        && request.resource.data.displayName is string && request.resource.data.displayName.size() <= 100
+        && request.resource.data.contactNumber is string && request.resource.data.contactNumber.size() <= 40
+        && request.resource.data.householdName is string && request.resource.data.householdName.size() <= 100
+        && request.resource.data.familyNames is string && request.resource.data.familyNames.size() <= 200
+        && request.resource.data.updatedAt is string;
+      allow delete: if admin() || (verified() && request.auth.uid == uid);
     }
     match /plans/{id} {
       allow read: if admin() || hasRole('planner') || hasRole('av') || hasRole('musician');

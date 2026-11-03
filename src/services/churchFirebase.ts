@@ -1,5 +1,9 @@
 import { FirebaseApp, FirebaseOptions, getApp, getApps, initializeApp } from 'firebase/app';
-import { GoogleAuthProvider, User, getAuth, signInWithPopup, signOut } from 'firebase/auth';
+import {
+  GoogleAuthProvider, User, createUserWithEmailAndPassword, getAuth,
+  sendEmailVerification, sendPasswordResetEmail, signInWithEmailAndPassword,
+  signInWithPopup, signOut,
+} from 'firebase/auth';
 import { Firestore, collection, deleteDoc, doc, getDoc, getFirestore, onSnapshot, setDoc, writeBatch } from 'firebase/firestore';
 
 export type ChurchRole = 'admin' | 'planner' | 'av' | 'musician' | 'people' | 'kids' | 'finance' | 'member';
@@ -96,6 +100,25 @@ export async function signInChurch(connection: ChurchConnection): Promise<User> 
   return result.user;
 }
 
+export async function registerChurchEmail(connection: ChurchConnection, email: string, password: string): Promise<User> {
+  const result = await createUserWithEmailAndPassword(getAuth(churchApp(connection)), email.trim(), password);
+  await sendEmailVerification(result.user);
+  return result.user;
+}
+
+export async function signInChurchEmail(connection: ChurchConnection, email: string, password: string): Promise<User> {
+  const result = await signInWithEmailAndPassword(getAuth(churchApp(connection)), email.trim(), password);
+  return result.user;
+}
+
+export async function resendChurchVerification(user: User): Promise<void> {
+  if (!user.emailVerified) await sendEmailVerification(user);
+}
+
+export async function resetChurchEmailPassword(connection: ChurchConnection, email: string): Promise<void> {
+  await sendPasswordResetEmail(getAuth(churchApp(connection)), email.trim());
+}
+
 export async function signOutChurch(connection: ChurchConnection) {
   await signOut(getAuth(churchApp(connection)));
 }
@@ -103,6 +126,7 @@ export async function signOutChurch(connection: ChurchConnection) {
 export async function getChurchRoles(db: Firestore, user: User, ownerEmail: string): Promise<{ roles: ChurchRole[]; owner: boolean }> {
   const owner = Boolean(user.emailVerified && user.email?.toLowerCase() === ownerEmail);
   if (owner) return { roles: ROLE_LIST, owner: true };
+  if (!user.emailVerified) return { roles: [], owner: false };
   const membership = await getDoc(doc(db, 'memberships', user.uid));
   const roles = Array.isArray(membership.data()?.roles) ? membership.data()!.roles.filter((role: unknown) => ROLE_LIST.includes(role as ChurchRole)) : [];
   return { roles, owner: false };
@@ -157,6 +181,7 @@ export async function saveChurchChanges<T extends { id: string }>(session: Churc
 }
 
 export async function requestChurchAccess(session: ChurchSession) {
+  if (!session.user.emailVerified) throw new Error('Verify your email before asking to join this church.');
   await setDoc(doc(session.db, 'joinRequests', session.user.uid), {
     uid: session.user.uid,
     email: session.user.email || '',
