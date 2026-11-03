@@ -32,6 +32,7 @@ import {
 import { toPraiseAVService } from '../utils/praiseavService';
 import { rotaConflicts } from '../utils/rotaConflicts';
 import { arrangeChordPro } from '../utils/songArrangement';
+import { assignedEmailAddresses, emailFingerprint, serviceTeamMessage } from '../utils/serviceSharing';
 
 interface ServicesWorkspaceProps {
   plans: ServicePlan[];
@@ -41,6 +42,7 @@ interface ServicesWorkspaceProps {
   onCreatePlan: (newPlan: ServicePlan) => void;
   songs: Song[];
   members: Member[];
+  shareUrl?: string;
   onPushItemToLiveAV: (planId: string, itemIndex: number, slideIndex?: number) => void;
   onOpenPraiseAVConsole: () => void;
 }
@@ -53,10 +55,15 @@ export const ServicesWorkspace: React.FC<ServicesWorkspaceProps> = ({
   onCreatePlan,
   songs,
   members,
+  shareUrl,
   onPushItemToLiveAV,
   onOpenPraiseAVConsole,
 }) => {
   const activePlan = plans.find((p) => p.id === activePlanId) || plans[0];
+  const [shareNotice, setShareNotice] = useState('');
+  const teamMessage = activePlan && shareUrl ? serviceTeamMessage(activePlan, songs, shareUrl) : '';
+  const teamEmails = activePlan ? assignedEmailAddresses(activePlan, members) : [];
+  const teamMailto = teamMessage && teamEmails.length ? `mailto:?bcc=${encodeURIComponent(teamEmails.join(','))}&subject=${encodeURIComponent(activePlan.title + ' service plan')}&body=${encodeURIComponent(teamMessage)}` : '';
   const [selectedItemId, setSelectedItemId] = useState<string>(
     activePlan?.items[1]?.id || activePlan?.items[0]?.id || ''
   );
@@ -242,7 +249,7 @@ export const ServicesWorkspace: React.FC<ServicesWorkspaceProps> = ({
     });
   };
 
-  const handleAssignVolunteerSubmit = (e: React.FormEvent) => {
+  const handleAssignVolunteerSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const member = selectedMember;
     if (!member) return;
@@ -251,6 +258,7 @@ export const ServicesWorkspace: React.FC<ServicesWorkspaceProps> = ({
       id: 'rota-' + crypto.randomUUID(),
       memberId: member.id,
       memberName: member.fullName,
+      memberEmailHash: await emailFingerprint(member.email),
       department: selectedDepartment,
       role: selectedRole,
       status: 'Pending',
@@ -336,6 +344,13 @@ export const ServicesWorkspace: React.FC<ServicesWorkspaceProps> = ({
             <Printer className="w-3.5 h-3.5" />
             Print sheet
           </button>
+          {shareUrl && <>
+            <button type="button" className="px-3 py-2 text-xs font-medium border border-slate-300 dark:border-slate-700 rounded-lg" onClick={async () => {
+              try { await navigator.clipboard.writeText(teamMessage); setShareNotice('Service order and team link copied. Send it to your rota using your usual messaging app.'); }
+              catch { setShareNotice('Could not copy the team message. Try Email team or your browser’s copy command.'); }
+            }}>Copy team message</button>
+            {teamMailto && <a className="px-3 py-2 text-xs font-medium border border-slate-300 dark:border-slate-700 rounded-lg" href={teamMailto}>Email team ({teamEmails.length})</a>}
+          </>}
           <button
             type="button"
             onClick={handleExportPraiseBundle}
@@ -358,6 +373,7 @@ export const ServicesWorkspace: React.FC<ServicesWorkspaceProps> = ({
           </div>
         </div>
       </div>
+      {shareNotice && <p role="status" className="text-sm rounded-lg border border-sky-400/50 p-3">{shareNotice}</p>}
 
       {/* Optional New Service Plan Form */}
       {showNewPlanForm && (

@@ -48,6 +48,7 @@ export interface RotaAssignment {
   id: string;
   memberId: string;
   memberName: string;
+  memberEmailHash?: string;
   department: RotaDepartment;
   role: string;
   status: 'Confirmed' | 'Pending' | 'Declined';

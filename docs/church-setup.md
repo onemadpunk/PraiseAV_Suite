@@ -66,6 +66,12 @@ On first run, PraiseAV asks whether you plan to use the Suite or prepare on anot
 
 The service file carries the order, the song words your church entered, and service-specific key and arrangement choices. Large media and visiting speaker presentation files are not embedded. Attach those files and run Ready for Sunday on the church computer before the service.
 
+## Share the band plan and follow live
+
+In a service plan, assign volunteers using member records with their email addresses. **Copy team message** makes a service summary with the order, song keys and a link into the Suite Band stand. **Email team** opens your email app with the assigned, non-declined volunteers in Bcc; review the draft before sending it. Volunteers sign in with their own approved church accounts. The Band stand shows assignments matching the signed-in email address and lets each musician choose a key and capo for their own tablet.
+
+For live following, send the updated `.praiseav` service file to PraiseAV Windows and reopen it there. Turn on **Remote** in PraiseAV Windows. On the same church Wi-Fi, band members scan its QR code, request pairing, and the AV desk approves each tablet as **Band stand (read-only)**. The local band view shows the song chart and follows the current section when the operator advances slides. Its capo choice affects that tablet alone. This local connection uses no per-slide Firebase writes; it needs the Windows app and tablet on the same network. The remote page uses a certificate made on the church computer, so the tablet may need to trust that local address on first use.
+
 ## Costs and support boundary
 
 The Suite itself has no subscription or payment processor. Firebase's free Spark plan has service quotas; reaching them can interrupt cloud features. Every church owns and administers its own project, so there is no single PraiseAV database quota shared across all churches. The Windows application continues to work without Firebase or an internet connection.

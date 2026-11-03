@@ -2,21 +2,25 @@ import { useEffect, useRef, useState } from 'react';
 import type { ServicePlan, Song } from '../types/church';
 import { ALL_KEYS, parseChordProForSheet, transposeChordPro } from '../utils/musicAndAv';
 import { arrangeChordPro } from '../utils/songArrangement';
+import { assignmentsForEmailHash, emailFingerprint } from '../utils/serviceSharing';
 
-interface Props { plans: ServicePlan[]; songs: Song[]; }
+interface Props { plans: ServicePlan[]; songs: Song[]; initialPlanId?: string; userEmail?: string; }
 
 const escapeHtml = (value: string) => value.replace(/[&<>"']/g, (char) =>
   ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char] || char
 );
 
-export function MusicStandWorkspace({ plans, songs }: Props) {
-  const [planId, setPlanId] = useState(plans[0]?.id || '');
+export function MusicStandWorkspace({ plans, songs, initialPlanId, userEmail = '' }: Props) {
+  const [planId, setPlanId] = useState(initialPlanId || plans[0]?.id || '');
   const [songIndex, setSongIndex] = useState(0);
   const [selectedKey, setSelectedKey] = useState('');
   const [capo, setCapo] = useState(0);
   const [expanded, setExpanded] = useState(false);
+  const [userEmailHash, setUserEmailHash] = useState('');
   const touchStart = useRef<{ x: number; y: number } | null>(null);
   const plan = plans.find((entry) => entry.id === planId) || plans[0];
+  const mySchedule = plans.map((entry) => ({ plan: entry, assignments: assignmentsForEmailHash(entry, userEmailHash) }))
+    .filter((entry) => entry.assignments.length).sort((a, b) => a.plan.date.localeCompare(b.plan.date));
   const entries = (plan?.items || []).flatMap((item) => {
     const song = songs.find((candidate) => candidate.id === item.songId);
     return song ? [{ item, song }] : [];
@@ -29,6 +33,12 @@ export function MusicStandWorkspace({ plans, songs }: Props) {
   const lines = parseChordProForSheet(chart);
 
   useEffect(() => { setSongIndex(0); setSelectedKey(''); setCapo(0); }, [planId]);
+  useEffect(() => {
+    let active = true;
+    emailFingerprint(userEmail).then((hash) => { if (active) setUserEmailHash(hash); });
+    return () => { active = false; };
+  }, [userEmail]);
+  useEffect(() => { if (initialPlanId) setPlanId(initialPlanId); }, [initialPlanId]);
   useEffect(() => { setSelectedKey(''); setCapo(0); }, [current?.item.id]);
 
   const printSongbook = () => {
@@ -50,6 +60,16 @@ export function MusicStandWorkspace({ plans, songs }: Props) {
   };
 
   return <section className={(expanded ? 'fixed inset-0 z-50 overflow-y-auto p-4 bg-white dark:bg-slate-950 ' : '') + 'space-y-5'}>
+    <div className="rounded-xl border border-slate-300 dark:border-slate-700 p-4 text-sm">
+      <strong>Follow PraiseAV live at church</strong>
+      <p>On the church Wi-Fi, ask the AV operator to turn on Remote in PraiseAV Windows. Scan its QR code on this tablet and ask to be approved as a read-only Band stand. That local view follows the live song and slide; your personal capo choice does not change the projector.</p>
+    </div>
+    {userEmail && <div className="rounded-xl border border-sky-400/50 p-4 space-y-2">
+      <h2 className="font-semibold">My schedule</h2>
+      {mySchedule.length ? mySchedule.map(({ plan: scheduled, assignments }) => <button key={scheduled.id} type="button" onClick={() => setPlanId(scheduled.id)} className="block w-full text-left rounded-lg border border-slate-300 dark:border-slate-700 p-3">
+        <strong>{scheduled.date} · {scheduled.title}</strong><span className="block text-sm">{assignments.map((entry) => `${entry.role} — ${entry.status}`).join(', ')}</span>
+      </button>) : <p className="text-sm">No rota assignments match {userEmail}. Ask your worship leader to assign your member record using this email address.</p>}
+    </div>}
     <div className="suite-page-header flex flex-wrap items-center justify-between gap-2">
       <div><div className="suite-eyebrow">Worship team / Charts</div><h1 className="text-xl font-bold">Band stand</h1><p className="text-sm text-slate-600 dark:text-slate-300">Read-only charts for this service. Your key and capo choices affect this screen only.</p></div>
       <div className="flex gap-2">

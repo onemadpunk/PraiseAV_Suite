@@ -53,7 +53,7 @@ import {
   SmallGroup,
   Song,
 } from './types/church';
-import { ChurchSession, canRead, canWrite, clearChurchConnection, signOutChurch } from './services/churchFirebase';
+import { ChurchSession, canRead, canWrite, churchInviteLink, clearChurchConnection, signOutChurch } from './services/churchFirebase';
 import { useChurchCollection } from './services/useChurchCollection';
 import { LEGACY_STORAGE_KEY, readLegacySnapshot } from './services/legacyData';
 import { parseChurchBackup } from './services/backup';
@@ -89,7 +89,8 @@ function defaultModule(session: ChurchSession | null): ActiveModule {
 }
 
 function SuiteWorkspace({ session, onExit }: { session: ChurchSession | null; onExit: () => void }) {
-  const [activeModule, setActiveModule] = useState<ActiveModule>(() => defaultModule(session));
+  const [activeModule, setActiveModule] = useState<ActiveModule>(() =>
+    new URLSearchParams(location.search).get('view') === 'band' && (!session || canRead(session, 'plans') && canRead(session, 'songs')) ? 'band' : defaultModule(session));
   const [darkMode, setDarkMode] = useState(true);
   const [activeThemePreset, setActiveThemePreset] = useState<PraiseAVThemePreset>(PRAISEAV_THEME_PRESETS[0]);
   const [dataError, setDataError] = useState('');
@@ -114,9 +115,7 @@ function SuiteWorkspace({ session, onExit }: { session: ChurchSession | null; on
     if (!moduleAllowed(activeModule)) setActiveModule(defaultModule(session));
   }, [session, activeModule]);
   const dataReady = [plansReady, songsReady, membersReady, checkinsReady, groupsReady, bookingsReady, donationsReady].every(Boolean);
-  const [activePlanId, setActivePlanId] = useState<string>(
-    plans[0]?.id || ''
-  );
+  const [activePlanId, setActivePlanId] = useState<string>(() => new URLSearchParams(location.search).get('plan') || plans[0]?.id || '');
 
   const [preview, setPreview] = useState({
     activeItemIndex: 0,
@@ -138,6 +137,12 @@ function SuiteWorkspace({ session, onExit }: { session: ChurchSession | null; on
   }, [darkMode, activeThemePreset]);
 
   const activePlan = plans.find((p) => p.id === activePlanId) || plans[0];
+  const shareUrl = session && activePlan && canWrite(session, 'plans') ? (() => {
+    const url = new URL(churchInviteLink(session.connection));
+    url.searchParams.set('view', 'band');
+    url.searchParams.set('plan', activePlan.id);
+    return url.toString();
+  })() : undefined;
 
   const handleUpdatePlan = (updated: ServicePlan) => {
     setPlans((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
@@ -512,6 +517,7 @@ function SuiteWorkspace({ session, onExit }: { session: ChurchSession | null; on
               onCreatePlan={handleCreatePlan}
               songs={songs}
               members={members}
+              shareUrl={shareUrl}
               onPushItemToLiveAV={(planId, itemIdx, slideIdx = 0) => {
                 setActivePlanId(planId);
                 setPreview({ activeItemIndex: itemIdx, activeSlideIndex: slideIdx });
@@ -533,7 +539,7 @@ function SuiteWorkspace({ session, onExit }: { session: ChurchSession | null; on
             />
           )}
 
-          {activeModule === 'band' && <MusicStandWorkspace plans={plans} songs={songs} />}
+          {activeModule === 'band' && <MusicStandWorkspace plans={plans} songs={songs} initialPlanId={activePlanId} userEmail={session?.user.email || ''} />}
 
           {activeModule === 'people' && (
             <PeopleAndRotasWorkspace
