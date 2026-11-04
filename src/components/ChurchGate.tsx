@@ -9,6 +9,7 @@ import {
   signInChurch, signInChurchEmail, signOutChurch,
 } from '../services/churchFirebase';
 import { churchRules } from '../services/churchRules';
+import { checkChurchRulesHealth } from '../services/churchRulesHealth';
 import { DirectoryChurch, cancelChurchReservation, directoryId, findChurches, finishChurchRegistration, refreshSavedReservation, reserveChurch, savedReservation } from '../services/churchDirectory';
 import { readLegacySnapshot } from '../services/legacyData';
 import { OwnProfileForm } from './OwnProfileForm';
@@ -20,7 +21,7 @@ function signInError(failure: unknown): string {
   return `Google sign-in failed. ${String(failure)}`;
 }
 
-export function ChurchGate({ onReady, onDemo }: { onReady: (session: ChurchSession) => void; onDemo: () => void }) {
+export function ChurchGate({ onReady }: { onReady: (session: ChurchSession) => void }) {
   const [connection, setConnection] = useState<ChurchConnection | null>(() => readChurchConnection());
   const [churchName, setChurchName] = useState(() => savedReservation()?.churchName || '');
   const [town, setTown] = useState(() => savedReservation()?.town || '');
@@ -120,7 +121,7 @@ export function ChurchGate({ onReady, onDemo }: { onReady: (session: ChurchSessi
     let parsed: ChurchConnection;
     try {
       parsed = parseChurchConnection({ config: parseFirebaseConfigText(configText), churchName, ownerEmail });
-      if (parsed.config.projectId === 'praiseav-suite') throw new Error('Create a Firebase project owned by your church. The PraiseAV pilot project cannot hold another church’s records.');
+      if (parsed.config.projectId === 'praiseav-suite') throw new Error('Create a Firebase project owned by your church. The PraiseAV registration project cannot hold another church’s records.');
     }
     catch (failure) { setError(String(failure)); return; }
     setBusy(true);
@@ -128,6 +129,8 @@ export function ChurchGate({ onReady, onDemo }: { onReady: (session: ChurchSessi
       const owner = await signInChurch(parsed);
       if (!owner.emailVerified || owner.email?.toLowerCase() !== parsed.ownerEmail) throw new Error('Sign in with the same Google account that registered this church.');
       await getDoc(doc(getFirestore(churchApp(parsed)), 'memberships', owner.uid));
+      const rulesHealth = await checkChurchRulesHealth(getFirestore(churchApp(parsed)));
+      if (rulesHealth !== 'current') throw new Error(rulesHealth === 'unsafe' ? 'The church security rules allow access that should be blocked. Publish the generated rules before connecting.' : 'Publish the current generated church security rules, then try connecting again.');
       await finishChurchRegistration(reservedId, parsed.config.projectId, parsed.ownerEmail);
       saveChurchConnection(parsed);
       setConnection(parsed);
@@ -232,8 +235,8 @@ export function ChurchGate({ onReady, onDemo }: { onReady: (session: ChurchSessi
     <main className="min-h-screen bg-slate-50 dark:bg-[#0B0F19] text-slate-900 dark:text-slate-100 p-6">
       <div className="max-w-2xl mx-auto bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-2xl p-6 space-y-5">
         <h1 className="inline-block">
-          <img className="w-60 max-w-full dark:hidden" src={import.meta.env.BASE_URL + 'branding/suite-primary-light.svg'} alt="PraiseAV Suite" />
-          <img className="hidden w-60 max-w-full dark:block" src={import.meta.env.BASE_URL + 'branding/suite-primary-dark.svg'} alt="PraiseAV Suite" />
+          <img className="w-60 max-w-full dark:hidden" src={(import.meta.env?.BASE_URL || '/') + 'branding/suite-primary-light.svg'} alt="PraiseAV Suite" />
+          <img className="hidden w-60 max-w-full dark:block" src={(import.meta.env?.BASE_URL || '/') + 'branding/suite-primary-dark.svg'} alt="PraiseAV Suite" />
         </h1>
         {connection ? (
           <>
@@ -299,7 +302,7 @@ export function ChurchGate({ onReady, onDemo }: { onReady: (session: ChurchSessi
                 {matches.some((church) => church.id === directoryId(churchName, town)) ? <p>If this is a separate congregation with the same name, add its neighbourhood to the church name and search again.</p> : <button type="button" className="px-4 py-2 rounded border border-sky-500 disabled:opacity-50" disabled={busy} onClick={registerChurch}>Set up this church</button>}
               </div>}
               {reservedId && <div className="text-sm space-y-2"><p className="text-emerald-700 dark:text-emerald-300">Church registration reserved for about two weeks. Continue the one-time setup below.</p><button type="button" className="underline disabled:opacity-50" disabled={busy} onClick={async () => { setBusy(true); try { await cancelChurchReservation(reservedId); setReservedId(null); setOwnerEmail(''); setSearched(false); setError(''); } catch (failure) { setError(String(failure)); } finally { setBusy(false); } }}>Change church name or town</button></div>}
-            </section> : <p className="rounded-xl border border-sky-300 dark:border-sky-800 p-4 text-sm">Church lookup and registration are available on the <a className="underline text-sky-600" href="https://praiseav-suite.web.app/">PraiseAV Suite pilot site</a>.</p>}
+            </section> : <p className="rounded-xl border border-sky-300 dark:border-sky-800 p-4 text-sm">Church lookup and registration are available on the <a className="underline text-sky-600" href="https://praiseav-suite.web.app/">PraiseAV Suite website</a>.</p>}
             {reservedId && <>
             <section aria-label="Church setup checklist" className="rounded-xl border border-sky-300 dark:border-sky-800 p-4 space-y-3 text-sm">
               <h2 className="font-semibold text-lg">Church setup checklist</h2>
@@ -319,8 +322,11 @@ export function ChurchGate({ onReady, onDemo }: { onReady: (session: ChurchSessi
             {rulesText && <div className="space-y-2"><p className="text-sm">Your church-specific rules are ready. Copy them into Firestore → Rules and click Publish there.</p><button type="button" className="px-3 py-2 rounded border" onClick={() => navigator.clipboard.writeText(rulesText).catch(() => setError('Clipboard unavailable. Select and copy the rules from the box below.'))}>Copy security rules</button><textarea readOnly aria-label="Church security rules" className="w-full p-2 border border-slate-300 dark:border-slate-600 rounded bg-white dark:bg-slate-800 text-slate-900 dark:text-white placeholder:text-slate-500 dark:placeholder:text-slate-400 font-mono text-xs" rows={8} value={rulesText} /><label className="flex items-start gap-2 text-sm"><input type="checkbox" checked={rulesPublished} onChange={(e) => setRulesPublished(e.target.checked)} />I published these rules in Firestore.</label></div>}
             <button className="px-4 py-2 rounded bg-sky-600 text-white disabled:opacity-50" disabled={!rulesText || !rulesPublished || busy} onClick={connect}>Connect and sign in</button>
             </>}
-            {hasLegacy && <p className="text-sm border border-amber-400 p-3">Older Suite records are still in this browser. Open them below and download a backup before moving them to a church project. They are not automatically uploaded.</p>}
-            <button className="underline text-sm" onClick={onDemo}>{hasLegacy ? "Open existing browser records" : "Try the sample church (new changes are not saved)"}</button>
+            {hasLegacy && <details className="text-sm rounded border border-slate-300 dark:border-slate-700 p-3"><summary>Recover older browser records</summary><p className="my-2">Download these records as a backup, then restore them after signing into your church. Nothing is uploaded automatically.</p><button type="button" className="underline" onClick={()=>{
+              const records=readLegacySnapshot();if(!records)return;
+              const url=URL.createObjectURL(new Blob([JSON.stringify(records,null,2)],{type:'application/json'}));
+              const link=document.createElement('a');link.href=url;link.download='praiseav-suite-older-browser-records.json';link.click();URL.revokeObjectURL(url);
+            }}>Download older records</button></details>}
           </>
         )}
         <p className="text-sm"><a className="underline" href="https://github.com/onemadpunk/PraiseAV_Suite/blob/main/docs/church-setup.md" target="_blank" rel="noreferrer">Full setup guide</a> · <a className="underline" href="https://praiseav.com/privacy.html" target="_blank" rel="noreferrer">Privacy policy</a></p>

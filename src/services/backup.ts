@@ -1,4 +1,5 @@
 import type { LegacySnapshot } from './legacyData';
+import type { SermonDraft } from '../types/church';
 
 const valid = (key: keyof LegacySnapshot, record: Record<string, unknown>): boolean => {
   const text = (name: string) => typeof record[name] === 'string';
@@ -15,7 +16,7 @@ const valid = (key: keyof LegacySnapshot, record: Record<string, unknown>): bool
 
 const keys = ['plans', 'songs', 'members', 'childrenList', 'smallGroups', 'roomBookings', 'donations'] as const;
 
-export function parseChurchBackup(input: unknown): LegacySnapshot {
+export function parseChurchBackup(input: unknown): LegacySnapshot & {sermonDrafts?:SermonDraft[]} {
   if (!input || typeof input !== 'object') throw new Error('This is not a PraiseAV Suite backup.');
   const value = input as Record<string, unknown>;
   const result = {} as LegacySnapshot;
@@ -34,6 +35,22 @@ export function parseChurchBackup(input: unknown): LegacySnapshot {
     }
     // The original browser backup and the new church backup use the same keys.
     (result as unknown as Record<string, unknown>)[key] = records;
+  }
+  if(value.sermonDrafts!==undefined) {
+    if(!Array.isArray(value.sermonDrafts) || value.sermonDrafts.length>10000)throw new Error('The backup has an invalid sermon draft list.');
+    const seen=new Set<string>();
+    for(const draft of value.sermonDrafts) {
+      if(!draft || typeof draft!=='object' || !/^[A-Za-z0-9_-]{1,80}$/.test(draft.id) || !/^[A-Za-z0-9_-]{1,80}$/.test(draft.planId)
+        || typeof draft.title!=='string' || draft.title.length>200 || typeof draft.notes!=='string' || draft.notes.length>300000
+        || typeof draft.updatedAt!=='string' || !Array.isArray(draft.slides) || draft.slides.length>100 || !Array.isArray(draft.media) || draft.media.length>30
+        || !result.plans.some(plan=>plan.id===draft.planId))
+        throw new Error('A private sermon draft is invalid or has no matching service.');
+      const key=`${draft.planId}/${draft.id}`;
+      if(seen.has(key))throw new Error('Duplicate private sermon draft.');
+      seen.add(key);
+      if(Object.keys(draft).some(key=>!['id','planId','title','notes','slides','media','updatedAt'].includes(key)))throw new Error('Unexpected private sermon draft fields.');
+    }
+    return {...result,sermonDrafts:value.sermonDrafts as SermonDraft[]};
   }
   return result;
 }

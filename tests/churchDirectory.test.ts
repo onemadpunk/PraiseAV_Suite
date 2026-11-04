@@ -14,11 +14,11 @@ test('invalid or missing names cannot reserve a directory entry', () => {
   assert.throws(() => directoryId('Hope Church', ''), /church name and town/);
 });
 
-test('only the PraiseAV pilot rules include the registration directory', () => {
+test('only the PraiseAV Suite rules include the registration directory', () => {
   const ordinaryChurch = churchRules('owner@example.org');
-  const pilot = churchRules('owner@example.org', true);
+  const directory = churchRules('owner@example.org', true);
   assert.doesNotMatch(ordinaryChurch, /churchDirectory/);
-  assert.match(pilot, /match \/churchDirectory\/\{id\}/);
-  assert.match(pilot, /resource\.data\.status == 'setting-up'/);
-  assert.match(pilot, /allow delete: if false/);
+  assert.match(directory, /match \/churchDirectory\/\{id\}/);
+  assert.match(directory, /resource\.data\.status == 'setting-up'/);
+  assert.match(directory, /allow delete: if false/);
 });

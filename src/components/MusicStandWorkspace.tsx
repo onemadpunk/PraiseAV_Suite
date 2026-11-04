@@ -4,13 +4,14 @@ import { ALL_KEYS, parseChordProForSheet, transposeChordPro } from '../utils/mus
 import { arrangeChordPro } from '../utils/songArrangement';
 import { assignmentsForEmailHash, emailFingerprint } from '../utils/serviceSharing';
 
-interface Props { plans: ServicePlan[]; songs: Song[]; initialPlanId?: string; userEmail?: string; }
+import { TabletConnection } from './TabletConnection';
+interface Props { plans: ServicePlan[]; songs: Song[]; initialPlanId?: string; userEmail?: string; churchId?:string; }
 
 const escapeHtml = (value: string) => value.replace(/[&<>"']/g, (char) =>
   ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char] || char
 );
 
-export function MusicStandWorkspace({ plans, songs, initialPlanId, userEmail = '' }: Props) {
+export function MusicStandWorkspace({ plans, songs, initialPlanId, userEmail = '', churchId }: Props) {
   const [planId, setPlanId] = useState(initialPlanId || plans[0]?.id || '');
   const [songIndex, setSongIndex] = useState(0);
   const [selectedKey, setSelectedKey] = useState('');
@@ -121,5 +122,6 @@ export function MusicStandWorkspace({ plans, songs, initialPlanId, userEmail = '
       </div>
       <p className="text-xs text-slate-500">Printing song words or charts may require your church to report copies under its licence.</p>
     </>}
+    <TabletConnection churchId={churchId}/>
   </section>;
 }

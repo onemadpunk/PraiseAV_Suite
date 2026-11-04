@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { collection, onSnapshot } from 'firebase/firestore';
 import { ChurchRole, ChurchSession, approveChurchAccess, churchInviteLink, removeChurchAccess, updateChurchAccess } from '../services/churchFirebase';
 import { churchRules } from '../services/churchRules';
+import { checkChurchRulesHealth, ChurchRulesHealth } from '../services/churchRulesHealth';
 
 const ROLES: ChurchRole[] = ['admin', 'office_staff', 'planner', 'preacher', 'worship_leader', 'av', 'musician', 'people', 'kids', 'finance', 'member', 'family'];
 const ROLE_NAMES: Record<ChurchRole, string> = { admin: 'Administrator', office_staff: 'Office staff', planner: 'Service planner', preacher: 'Preacher', worship_leader: 'Worship leader', av: 'AV operator', musician: 'Musician', people: 'People team', kids: 'Kids team', finance: 'Finance team', member: 'Member', family: 'Family' };
@@ -17,7 +18,15 @@ export function ChurchAdminPanel({ session, onClose }: { session: ChurchSession;
   const [notice, setNotice] = useState('');
   const [busy, setBusy] = useState(false);
   const [inviteEmail, setInviteEmail] = useState('');
+  const [rulesHealth, setRulesHealth] = useState<ChurchRulesHealth | 'checking'>('checking');
   const canManage = session.owner || session.roles.includes('admin');
+
+  useEffect(() => {
+    if (!canManage) return;
+    let active = true;
+    void checkChurchRulesHealth(session.db).then((health) => { if (active) setRulesHealth(health); });
+    return () => { active = false; };
+  }, [session.db, canManage]);
 
   useEffect(() => {
     if (!canManage) return;
@@ -48,7 +57,13 @@ export function ChurchAdminPanel({ session, onClose }: { session: ChurchSession;
         <div className="flex gap-2"><input readOnly className="flex-1 p-2 border rounded text-xs text-slate-900" value={churchInviteLink(session.connection)} /><button className="px-3 py-2 rounded bg-sky-600 text-white" onClick={() => navigator.clipboard.writeText(churchInviteLink(session.connection))}>Copy link</button></div>
         <div className="space-y-2 text-sm"><label className="block">Send an invitation email<input type="email" className="w-full mt-1 p-2 border rounded text-slate-900" placeholder="person@example.org" value={inviteEmail} onChange={(event) => setInviteEmail(event.target.value)} /></label><a className="inline-block px-3 py-2 rounded border" href={inviteEmail.trim() ? `mailto:${encodeURIComponent(inviteEmail.trim())}?subject=${encodeURIComponent('Invitation to ' + session.connection.churchName + ' on PraiseAV Suite')}&body=${encodeURIComponent('Please use this link to join our church on PraiseAV Suite:\n' + churchInviteLink(session.connection) + '\n\nSign in and request access. A church administrator will approve your account.')}` : undefined} onClick={(event) => { if (!inviteEmail.trim()) event.preventDefault(); }}>Open email draft</a><p>The email opens in your mail app. An administrator still approves each request.</p></div>
         {canManage && <>
-        <div className="rounded-lg border border-sky-300 dark:border-sky-800 p-3 text-sm space-y-2"><p>For email registration and private profiles, enable Email/Password in Firebase Authentication and publish the latest church security rules in Firestore. Existing churches need to do this once.</p><button type="button" className="px-3 py-2 rounded border" onClick={() => navigator.clipboard.writeText(churchRules(session.connection.ownerEmail)).then(() => setNotice('Updated church rules copied. Paste them into Firestore → Rules and publish.')).catch(() => setNotice('Could not copy rules. Open the setup guide to generate them again.'))}>Copy updated security rules</button></div>
+        <div className="rounded-lg border border-sky-300 dark:border-sky-800 p-3 text-sm space-y-2">
+          <strong>Church security rules</strong>
+          <p role="status">{rulesHealth === 'current' ? 'Current rules confirmed.' : rulesHealth === 'checking' ? 'Checking the connected church…' : rulesHealth === 'update-needed' ? 'An update is needed before using the latest church features.' : rulesHealth === 'unsafe' ? 'The connected rules allowed a read that should be blocked. Review them before inviting members.' : 'Could not check the rules while the church connection is unavailable.'}</p>
+          {rulesHealth !== 'current' && <p>The church owner can publish the updated rules in Firebase Console. The church connection stays in place.</p>}
+          {rulesHealth !== 'current' && <button type="button" className="px-3 py-2 rounded border" onClick={() => navigator.clipboard.writeText(churchRules(session.connection.ownerEmail)).then(() => setNotice('Updated church rules copied. Paste them into Firestore → Rules and publish, then check again.')).catch(() => setNotice('Could not copy rules. Open the setup guide to generate them again.'))}>Copy updated security rules</button>}
+          <button type="button" className="px-3 py-2 rounded border" onClick={() => { setRulesHealth('checking'); void checkChurchRulesHealth(session.db).then(setRulesHealth); }}>Check again</button>
+        </div>
         <h3 className="font-semibold">Waiting for approval</h3>
         {!requests.length && <p className="text-sm">No requests yet.</p>}
         {requests.map((request) => {

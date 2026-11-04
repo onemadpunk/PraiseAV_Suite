@@ -36,6 +36,16 @@ export interface ServiceItem {
   audioCue: string;
   lightingCue: string;
   customSlides?: PraiseSlide[];
+  sermonMedia?: SermonMedia[];
+}
+
+export interface SermonMedia {
+  id: string; name: string; kind: 'video' | 'audio'; fileName: string;
+  sha256: string; bytes: number; afterSlide: number;
+}
+export interface SermonDraft {
+  id: string; planId: string; title: string; notes: string;
+  slides: PraiseSlide[]; media: SermonMedia[]; updatedAt: string;
 }
 
 export type RotaDepartment =
@@ -63,6 +73,7 @@ export interface ServicePlan {
   targetDurationMinutes: number;
   items: ServiceItem[];
   rota: RotaAssignment[];
+  sermonAssignments?: Record<string, string>;
 }
 
 export interface Song {

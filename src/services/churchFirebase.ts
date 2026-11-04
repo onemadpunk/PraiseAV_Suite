@@ -28,6 +28,11 @@ const STORAGE_KEY = 'praiseav_suite_church_connection_v1';
 const DOMAINS: DataDomain[] = ['plans', 'songs', 'members', 'checkins', 'groups', 'bookings', 'donations'];
 const ROLE_LIST: ChurchRole[] = ['admin', 'office_staff', 'planner', 'preacher', 'worship_leader', 'av', 'musician', 'people', 'kids', 'finance', 'member', 'family'];
 
+// Sign-in and live membership changes must accept exactly the same supported roles.
+export function churchRolesFromMembership(value:unknown):ChurchRole[] {
+  return Array.isArray(value) ? [...new Set(value.filter((role):role is ChurchRole=>ROLE_LIST.includes(role as ChurchRole)))] : [];
+}
+
 export function parseFirebaseConfigText(text: string): Record<string, string> {
   try {
     const json = JSON.parse(text) as unknown;
@@ -128,7 +133,7 @@ export async function getChurchRoles(db: Firestore, user: User, ownerEmail: stri
   if (owner) return { roles: ROLE_LIST, owner: true };
   if (!user.emailVerified) return { roles: [], owner: false };
   const membership = await getDoc(doc(db, 'memberships', user.uid));
-  const roles = Array.isArray(membership.data()?.roles) ? membership.data()!.roles.filter((role: unknown) => ROLE_LIST.includes(role as ChurchRole)) : [];
+  const roles = churchRolesFromMembership(membership.data()?.roles);
   return { roles, owner: false };
 }
 

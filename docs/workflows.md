@@ -6,6 +6,14 @@ Create an empty service with a name, date, and time. Add songs, a reading, sermo
 
 The Suite's cue and slide view is a local preview. It does not change the congregation projector. The desktop program handles live output. A shared OneDrive or Google Drive folder may transfer files between computers after the church has set it up. Folder transfer writes a service file only when the user clicks Send; it does not automatically update a service already open in PraiseAV.
 
+## Prepare a sermon at home, run it on Sunday
+
+The planner adds the sermon to Sunday’s service and identifies the preacher’s email in My sermon & tablet. That preacher opens My sermon & tablet, saves private notes and congregation slides separately, and adds video/music cues. Use --- between notes pages or congregation slides. Choose where each media cue plays, then Send my sermon to church. The planner also sends the complete running order through PraiseAV export. Each preacher publishes only their contribution, keeping the rest of the plan intact.
+
+Link the church’s shared PraiseAV Services folder once in Chrome or Edge on a home computer. Video/music bytes are copied to its PraiseAV Assets subfolder and verified. Google Drive or OneDrive must sync that same folder to the booth; Firebase holds drafts and account permissions, not the media files. The desktop lists missing/incomplete files before loading and caches verified media when the operator opens the service. Loading a later update always needs an operator action; it cannot interrupt the live screen. Browser folder access is currently required to publish media; a tablet can read/edit drafts but iPad browsers cannot write to that desktop synced folder directly. Supported media: MP4, WebM, MP3, WAV, M4A and OGG, up to 512 MB per file. Actual codec support also depends on the browser/desktop.
+
+At church the tablet joins the local Wi-Fi and scans PraiseAV’s Remote QR code. The operator approves Band, Preacher or both once. Band follows the live song/slide automatically; Preacher uses the current sermon’s notes, slides, timer and video/music controls. No weekly tablet-to-sermon assignment is required. Approved devices are remembered on the same browser and church address. Open my Suite preparation links back to the church plan and remembers the live computer address; later Sundays can use Open church live views. The offline Band Music Stand remains a rehearsal file and does not itself receive live slide changes.
+
 ## Songs and musicians
 
 The Suite can store church-licensed lyrics and ChordPro charts, show a transposed preview, and export a plain text song that PraiseAV can import. The complete service export carries ChordPro alongside words. The same song can have a different key and section order in each service. PraiseAV uses those choices for slides and band printouts without changing the library copy. The Band stand works on phones and tablets: choose a service, move between songs by buttons or swiping, choose a sounding key and capo, and print or save a songbook through the browser's print dialog. Personal key and capo choices do not change the service plan.
@@ -22,4 +30,6 @@ Kids staff can record check-in and check-out, pickup codes, and medical notes. A
 
 ## Offline use
 
-PraiseAV Windows runs independently and offline. The Suite sample works without an account but does not persist changes between visits. Church mode needs a connection to Firebase to sign in and save shared records. Download backups regularly.
+PraiseAV Windows runs independently and offline. Church mode needs a connection to Firebase to sign in and save shared records. Download backups regularly.
+
+Administrator JSON backups include private sermon drafts as well as the running order. Media bytes remain in the shared Services/PraiseAV Assets folder and need their own folder backup. Restoring an older JSON without sermonDrafts leaves existing private drafts intact. After restoring drafts, republish any sermon that needs to reach the booth.

@@ -1,11 +1,11 @@
 /**
- * One-time, church-owned Firebase provisioning helper. This is a pilot tool,
+ * One-time, church-owned Firebase provisioning helper. This is an administrator tool,
  * not part of the public Suite UI. It invokes Google's official Firebase CLI
  * using the administrator's local login; no credentials are sent to PraiseAV.
  *
  * Examples:
  *   node --import tsx tools/church-cloud-setup.ts --project praiseav-suite \
- *     --church "PraiseAV pilot" --owner church@example.org --location europe-west2
+ *     --church "PraiseAV Suite" --owner church@example.org --location europe-west2
  *   ...same arguments... --apply
  */
 import { spawnSync } from 'node:child_process';
@@ -147,9 +147,9 @@ export function applyToExistingProject(options: SetupOptions, runner: Runner = s
   const namedApps = initial.apps.filter((app) => app.displayName === 'PraiseAV Suite');
   // The current Firebase CLI chooses the first app when deploying Auth. A
   // project with more than one app needs an explicit selection path, which
-  // this pilot intentionally does not provide.
+  // this helper intentionally does not provide.
   if (initial.apps.length > 1 || (initial.apps.length && !namedApps.length)) {
-    throw new Error('This project has web apps that cannot be identified safely. This pilot supports one PraiseAV Suite web app only.');
+    throw new Error('This project has web apps that cannot be identified safely. This helper supports one PraiseAV Suite web app only.');
   }
   if (initial.defaultDatabase?.locationId && initial.defaultDatabase.locationId !== options.location) {
     throw new Error(`This project already has Firestore in ${initial.defaultDatabase.locationId}. The database location cannot be changed.`);
@@ -183,7 +183,7 @@ if (process.argv[1] && import.meta.url.endsWith(process.argv[1].replaceAll('\\',
       console.log(`Apps: ${state.apps.map((app) => `${app.displayName} (${app.platform})`).join(', ') || 'none'}`);
       console.log(`Default Firestore database: ${state.defaultDatabase ? `exists in ${state.defaultDatabase.locationId || 'unknown location'}` : 'not set up yet'}`);
     } else if (!options.apply) {
-      console.log(`Pilot plan for existing church project ${options.project}:`);
+      console.log(`Setup plan for existing church project ${options.project}:`);
       console.log(`  Church owner: ${options.owner}`);
       console.log(`  Suite domain: ${options.domain}`);
       console.log(`  Firestore: use existing (default), or create in ${options.location || '[choose --location]'}`);

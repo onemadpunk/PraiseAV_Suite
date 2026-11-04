@@ -9,7 +9,8 @@
     "preview": "vite preview",
     "clean": "rm -rf dist server.js",
     "lint": "tsc --noEmit",
-    "test": "node --import tsx --test tests/praiseavService.test.ts tests/serviceFolderTransfer.test.ts tests/churchSetup.test.ts tests/churchCloudSetup.test.ts tests/churchDirectory.test.ts tests/desktopCompatibility.test.ts tests/rotaConflicts.test.ts tests/serviceSharing.test.ts tests/csv.test.ts tests/songArrangement.test.ts"
+    "test": "node --import tsx --test tests/praiseavService.test.ts tests/serviceFolderTransfer.test.ts tests/churchSetup.test.ts tests/churchCloudSetup.test.ts tests/churchDirectory.test.ts tests/desktopCompatibility.test.ts tests/rotaConflicts.test.ts tests/serviceSharing.test.ts tests/csv.test.ts tests/songArrangement.test.ts tests/sermonWorkflow.test.ts tests/liveEntry.test.tsx",
+    "test:rules": "node --import tsx tools/write-test-rules.ts && node .firebase-cli/node_modules/firebase-tools/lib/bin/firebase.js emulators:exec --config firebase.test.json --project demo-praiseav-sermons --only firestore \"node --import tsx --test tests/sermonRules.test.ts\""
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.3.3",
@@ -21,6 +22,7 @@
     "vite": "^8.3.0"
   },
   "devDependencies": {
+    "@firebase/rules-unit-testing": "^6.0.0",
     "@types/node": "^22.14.0",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",

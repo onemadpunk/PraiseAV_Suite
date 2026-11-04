@@ -1,10 +1,13 @@
 // Each church installs these rules in its own Firebase project. A user owning
 // the Google account named here can administer the church from a fresh project;
 // every other person must be approved by an administrator in the Suite.
+export const CHURCH_RULES_VERSION = 'v2';
+
 export function churchRules(ownerEmail: string, includeDirectory = false): string {
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(ownerEmail)) throw new Error('Enter a valid owner email first.');
   const owner = JSON.stringify(ownerEmail.trim().toLowerCase());
-  return `rules_version = '2';
+  return `// PraiseAV church rules ${CHURCH_RULES_VERSION}
+rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     function signedIn() { return request.auth != null; }
@@ -26,6 +29,13 @@ service cloud.firestore {
       return owner() || (verified() && exists(/databases/$(database)/documents/memberships/$(request.auth.uid)));
     }
     function validRecord(id) { return request.resource.data.id == id; }
+
+    // A read-only capability probe lets Suite detect a church whose security
+    // rules need updating. No document or write is required for this check.
+    match /ruleCapabilities/{version} {
+      allow get: if admin() && version == '${CHURCH_RULES_VERSION}';
+      allow list, create, update, delete: if false;
+    }
 
     ${includeDirectory ? `// PraiseAV's small registration index. No church records are stored here.
     function validPendingChurch(id) {
@@ -134,6 +144,24 @@ service cloud.firestore {
       allow read: if admin() || hasRole('planner') || hasRole('preacher') || hasRole('worship_leader') || hasRole('av') || hasRole('musician');
       allow create, update: if (admin() || hasRole('planner') || hasRole('worship_leader')) && validRecord(id);
       allow delete: if admin() || hasRole('planner') || hasRole('worship_leader');
+    }
+    match /plans/{planId}/sermons/{itemId} {
+      function planner() { return admin() || hasRole('planner') || hasRole('worship_leader'); }
+      function assigned() {
+        return hasRole('preacher')
+          && get(/databases/$(database)/documents/plans/$(planId)).data.sermonAssignments[itemId] == request.auth.token.email;
+      }
+      allow get: if planner() || hasRole('av') || assigned();
+      allow list: if planner() || hasRole('av');
+      allow create, update: if (planner() || assigned())
+        && request.resource.data.keys().hasOnly(['id','planId','title','notes','slides','media','updatedAt'])
+        && request.resource.data.id == itemId && request.resource.data.planId == planId
+        && request.resource.data.title is string && request.resource.data.title.size() <= 200
+        && request.resource.data.notes is string && request.resource.data.notes.size() <= 300000
+        && request.resource.data.slides is list && request.resource.data.slides.size() <= 100
+        && request.resource.data.media is list && request.resource.data.media.size() <= 30
+        && request.resource.data.updatedAt is string;
+      allow delete: if planner();
     }
     match /members/{id} {
       allow read: if admin() || hasRole('people');

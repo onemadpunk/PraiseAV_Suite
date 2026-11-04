@@ -14,7 +14,6 @@ import {
   MonitorPlay,
   Moon,
   Music,
-  RotateCcw,
   ShieldCheck,
   Sun,
   Upload,
@@ -36,15 +35,6 @@ import { SongLibraryWorkspace } from './components/SongLibraryWorkspace';
 import { MusicStandWorkspace } from './components/MusicStandWorkspace';
 import { OwnProfileForm } from './components/OwnProfileForm';
 import {
-  INITIAL_CHECKINS,
-  INITIAL_DONATIONS,
-  INITIAL_MEMBERS,
-  INITIAL_ROOM_BOOKINGS,
-  INITIAL_SERVICE_PLANS,
-  INITIAL_SMALL_GROUPS,
-  INITIAL_SONGS,
-} from './data/initialChurchData';
-import {
   CheckInChild,
   DonationRecord,
   Member,
@@ -54,16 +44,18 @@ import {
   SmallGroup,
   Song,
 } from './types/church';
-import { ChurchSession, canRead, canWrite, churchInviteLink, clearChurchConnection, signOutChurch } from './services/churchFirebase';
+import { ChurchSession, canRead, canWrite, churchInviteLink, clearChurchConnection, signOutChurch, churchRolesFromMembership } from './services/churchFirebase';
 import { useChurchCollection } from './services/useChurchCollection';
-import { LEGACY_STORAGE_KEY, readLegacySnapshot } from './services/legacyData';
+import { SermonWorkspace } from './components/SermonWorkspace';
 import { parseChurchBackup } from './services/backup';
+import {readSermonDrafts,restoreSermonDrafts} from './services/sermonBackup';
 import { doc, onSnapshot } from 'firebase/firestore';
 
 type ActiveModule =
   | 'services'
   | 'songs'
   | 'band'
+  | 'sermons'
   | 'people'
   | 'directory'
   | 'checkins'
@@ -74,6 +66,7 @@ const MODULE_TITLES: Record<ActiveModule, string> = {
   services: 'Service planning',
   songs: 'Song library',
   band: 'Band stand',
+  sermons: 'My sermon & tablet',
   people: 'People & rotas',
   directory: 'Church directory',
   checkins: 'Kids check-ins',
@@ -83,6 +76,7 @@ const MODULE_TITLES: Record<ActiveModule, string> = {
 
 function defaultModule(session: ChurchSession | null): ActiveModule {
   if (!session) return 'services';
+  if (session.roles.includes('preacher') && !session.roles.some(role=>['planner','admin'].includes(role))) return 'sermons';
   if (session.roles.includes('musician') && !session.roles.some((role) => role === 'planner' || role === 'av' || role === 'admin')) return 'band';
   if (canRead(session, 'plans')) return 'services';
   if (canRead(session, 'members')) return 'people';
@@ -91,24 +85,27 @@ function defaultModule(session: ChurchSession | null): ActiveModule {
   return 'directory';
 }
 
-function SuiteWorkspace({ session, onExit }: { session: ChurchSession | null; onExit: () => void }) {
-  const [activeModule, setActiveModule] = useState<ActiveModule>(() =>
-    new URLSearchParams(location.search).get('view') === 'band' && (!session || canRead(session, 'plans') && canRead(session, 'songs')) ? 'band' : defaultModule(session));
+function SuiteWorkspace({ session, onExit }: { session: ChurchSession; onExit: () => void }) {
+  const [activeModule, setActiveModule] = useState<ActiveModule>(() => {
+    const view=new URLSearchParams(location.search).get('view');
+    if(view==='sermons' && (!session || canWrite(session,'plans') || session.roles.includes('preacher')))return 'sermons';
+    return view==='band' && (!session || canRead(session,'plans') && canRead(session,'songs')) ? 'band' : defaultModule(session);
+  });
   const [darkMode, setDarkMode] = useState(true);
   const [activeThemePreset, setActiveThemePreset] = useState<PraiseAVThemePreset>(PRAISEAV_THEME_PRESETS[0]);
   const [dataError, setDataError] = useState('');
-  const [legacy] = useState(() => readLegacySnapshot());
-  const [plans, setPlans, plansReady] = useChurchCollection(session, 'plans', legacy?.plans || INITIAL_SERVICE_PLANS, setDataError);
-  const [songs, setSongs, songsReady] = useChurchCollection(session, 'songs', legacy?.songs || INITIAL_SONGS, setDataError);
-  const [members, setMembers, membersReady] = useChurchCollection(session, 'members', legacy?.members || INITIAL_MEMBERS, setDataError);
-  const [childrenList, setChildrenList, checkinsReady] = useChurchCollection(session, 'checkins', legacy?.childrenList || INITIAL_CHECKINS, setDataError);
-  const [smallGroups, setSmallGroups, groupsReady] = useChurchCollection(session, 'groups', legacy?.smallGroups || INITIAL_SMALL_GROUPS, setDataError);
-  const [roomBookings, setRoomBookings, bookingsReady] = useChurchCollection(session, 'bookings', legacy?.roomBookings || INITIAL_ROOM_BOOKINGS, setDataError);
-  const [donations, setDonations, donationsReady] = useChurchCollection(session, 'donations', legacy?.donations || INITIAL_DONATIONS, setDataError);
+  const [plans, setPlans, plansReady] = useChurchCollection<ServicePlan>(session, 'plans', [], setDataError);
+  const [songs, setSongs, songsReady] = useChurchCollection<Song>(session, 'songs', [], setDataError);
+  const [members, setMembers, membersReady] = useChurchCollection<Member>(session, 'members', [], setDataError);
+  const [childrenList, setChildrenList, checkinsReady] = useChurchCollection<CheckInChild>(session, 'checkins', [], setDataError);
+  const [smallGroups, setSmallGroups, groupsReady] = useChurchCollection<SmallGroup>(session, 'groups', [], setDataError);
+  const [roomBookings, setRoomBookings, bookingsReady] = useChurchCollection<RoomBooking>(session, 'bookings', [], setDataError);
+  const [donations, setDonations, donationsReady] = useChurchCollection<DonationRecord>(session, 'donations', [], setDataError);
   const [showAdmin, setShowAdmin] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
   const moduleAllowed = (module: ActiveModule) => !session
     || module === 'directory'
+    || (module === 'sermons' && (canWrite(session,'plans') || session.roles.includes('preacher')))
     || (module === 'praise-av' && canRead(session, 'plans') && canRead(session, 'songs'))
     || (module === 'services' && canRead(session, 'plans'))
     || (module === 'songs' && canRead(session, 'songs'))
@@ -194,10 +191,14 @@ function SuiteWorkspace({ session, onExit }: { session: ChurchSession | null; on
     );
   };
 
-  const handleExportFullDatabase = () => {
+  const handleExportFullDatabase = async () => {
+    if(!dataReady){setDataError('Wait for church records to finish loading before making a backup.');return;}
+    try {
+    const sermonDrafts=session?await readSermonDrafts(session,plans.map(plan=>plan.id)):undefined;
     const fullBackup = {
       exportedAt: new Date().toISOString(),
       platform: 'PraiseAV Suite church backup',
+      ...(sermonDrafts && {sermonDrafts}),
       plans,
       songs,
       members,
@@ -215,6 +216,7 @@ function SuiteWorkspace({ session, onExit }: { session: ChurchSession | null; on
     a.download = `praiseav-suite-church-database-${new Date().toISOString().slice(0, 10)}.json`;
     a.click();
     URL.revokeObjectURL(url);
+    }catch(error){setDataError('Could not create the complete backup: '+String(error));}
   };
 
   const handleImportDatabaseFile = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -224,10 +226,11 @@ function SuiteWorkspace({ session, onExit }: { session: ChurchSession | null; on
     if (file.size > 20 * 1024 * 1024) { setDataError('Backup file exceeds the 20 MB import limit.'); return; }
     const reader = new FileReader();
     reader.onerror = () => setDataError('Could not read the backup file.');
-    reader.onload = () => {
+    reader.onload = async () => {
       try {
         const parsed = parseChurchBackup(JSON.parse(String(reader.result)));
         if (session && !confirm('Restore this backup into ' + session.connection.churchName + '? Records with the same IDs will be replaced, and records missing from the backup will be removed. Download a backup of the current church first.')) return;
+        if(session && parsed.sermonDrafts)await restoreSermonDrafts(session,[...plans.map(plan=>plan.id),...parsed.plans.map(plan=>plan.id)],parsed.sermonDrafts);
         setPlans(parsed.plans);
         setSongs(parsed.songs);
         setMembers(parsed.members);
@@ -235,25 +238,12 @@ function SuiteWorkspace({ session, onExit }: { session: ChurchSession | null; on
         setSmallGroups(parsed.smallGroups);
         setRoomBookings(parsed.roomBookings);
         setDonations(parsed.donations);
-        setDataError('');
+        setDataError(session && !parsed.sermonDrafts?'This older backup has no private sermon drafts. Existing drafts have been kept.':'');
       } catch (failure) {
         setDataError('Could not restore backup: ' + String(failure));
       }
     };
     reader.readAsText(file);
-  };
-
-  const handleResetDemoData = () => {
-    if (legacy && !confirm('This clears this browser’s older Suite records. Download a backup first if you need them. Continue?')) return;
-    localStorage.removeItem(LEGACY_STORAGE_KEY);
-    setPlans(INITIAL_SERVICE_PLANS);
-    setSongs(INITIAL_SONGS);
-    setMembers(INITIAL_MEMBERS);
-    setChildrenList(INITIAL_CHECKINS);
-    setSmallGroups(INITIAL_SMALL_GROUPS);
-    setRoomBookings(INITIAL_ROOM_BOOKINGS);
-    setDonations(INITIAL_DONATIONS);
-    setActivePlanId(INITIAL_SERVICE_PLANS[0].id);
   };
 
   if (session && !dataReady) return <main className="p-8">Opening {session.connection.churchName}…</main>;
@@ -276,7 +266,7 @@ function SuiteWorkspace({ session, onExit }: { session: ChurchSession | null; on
         </a>
 
         <div className="suite-topbar-context" aria-live="polite">
-          <span className="suite-topbar-kicker">{session?.connection.churchName || 'Sample church'}</span>
+          <span className="suite-topbar-kicker">{session.connection.churchName}</span>
           <span className="suite-topbar-page">{MODULE_TITLES[activeModule]}</span>
         </div>
 
@@ -341,6 +331,7 @@ function SuiteWorkspace({ session, onExit }: { session: ChurchSession | null; on
                 <button type="button" onClick={() => setActiveModule('band')} className={`w-full flex items-center px-3 py-2 text-xs font-medium rounded-lg ${activeModule === 'band' ? 'bg-sky-50 dark:bg-sky-950/60 text-sky-700 dark:text-sky-300 font-semibold' : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'}`}>
                   <Headphones className="w-4 h-4 mr-2.5" /> Band stand
                 </button>
+                {moduleAllowed('sermons') && <button type="button" onClick={()=>setActiveModule('sermons')} className="w-full text-left px-3 py-2 text-xs rounded-lg">My sermon & tablet</button>}
                 <button
                   type="button"
                   onClick={() => setActiveModule('people')}
@@ -499,16 +490,9 @@ function SuiteWorkspace({ session, onExit }: { session: ChurchSession | null; on
                 )}
               </button>
 
-              {!session && <button
-                type="button"
-                onClick={handleResetDemoData}
-                title="Reset local preview data (download a backup first)"
-                className="p-1.5 text-slate-500 hover:text-slate-900 dark:hover:text-slate-100 bg-slate-100 dark:bg-slate-800 rounded-lg"
-              >
-                <RotateCcw className="w-3.5 h-3.5" />
-              </button>}
+
             </div>
-            <button className="text-xs underline px-3 py-1" onClick={onExit}>{session ? 'Sign out / switch church' : 'Leave sample church'}</button>
+            <button className="text-xs underline px-3 py-1" onClick={onExit}>Sign out / switch church</button>
           </div>
         </aside>
 
@@ -546,7 +530,8 @@ function SuiteWorkspace({ session, onExit }: { session: ChurchSession | null; on
             />
           )}
 
-          {activeModule === 'band' && <MusicStandWorkspace plans={plans} songs={songs} initialPlanId={activePlanId} userEmail={session?.user.email || ''} />}
+          {activeModule === 'band' && <MusicStandWorkspace plans={plans} songs={songs} initialPlanId={activePlanId} userEmail={session?.user.email || ''} churchId={session?.connection.config.projectId} />}
+          {activeModule === 'sermons' && <SermonWorkspace plans={plans} session={session} onUpdatePlan={handleUpdatePlan} initialPlanId={activePlanId}/>}
 
           {activeModule === 'people' && (
             <PeopleAndRotasWorkspace
@@ -587,6 +572,7 @@ function SuiteWorkspace({ session, onExit }: { session: ChurchSession | null; on
 
           {activeModule === 'praise-av' && (
             <PraseAVBridgeWorkspace
+              suiteLink={shareUrl}
               activePlan={activePlan}
               songs={songs}
               activeThemePreset={activeThemePreset}
@@ -604,15 +590,11 @@ function SuiteWorkspace({ session, onExit }: { session: ChurchSession | null; on
 
 export default function App() {
   const [session, setSession] = useState<ChurchSession | null>(null);
-  const [demo, setDemo] = useState(false);
   const onReady = useCallback((ready: ChurchSession) => setSession(ready), []);
   useEffect(() => {
     if (!session || session.owner) return;
     return onSnapshot(doc(session.db, 'memberships', session.user.uid), (snapshot) => {
-      const allowed = new Set(['admin', 'planner', 'av', 'musician', 'people', 'kids', 'finance', 'member']);
-      const roles = Array.isArray(snapshot.data()?.roles)
-        ? snapshot.data()!.roles.filter((role: unknown) => typeof role === 'string' && allowed.has(role))
-        : [];
+      const roles = churchRolesFromMembership(snapshot.data()?.roles);
       if (!snapshot.exists() || !roles.length) {
         setSession(null);
         return;
@@ -626,8 +608,7 @@ export default function App() {
       clearChurchConnection();
     }
     setSession(null);
-    setDemo(false);
   }, [session]);
-  if (!session && !demo) return <ChurchGate onReady={onReady} onDemo={() => setDemo(true)} />;
+  if (!session) return <ChurchGate onReady={onReady} />;
   return <SuiteWorkspace session={session} onExit={onExit} />;
 }

@@ -34,7 +34,7 @@ async function directoryApp(): Promise<FirebaseApp> {
   const name = 'praiseav-directory';
   if (getApps().some((app) => app.name === name)) return getApp(name);
   // Firebase Hosting exposes its public Web configuration at this reserved URL.
-  // The directory belongs to the PraiseAV pilot; church records stay elsewhere.
+  // The directory belongs to the PraiseAV registration service; church records stay elsewhere.
   const response = await fetch('/__/firebase/init.json');
   if (!response.ok) throw new Error('Church lookup is available at praiseav-suite.web.app. Open that address to register a church.');
   const config = await response.json() as FirebaseOptions;

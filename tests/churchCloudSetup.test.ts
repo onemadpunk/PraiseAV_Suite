@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { rmSync } from 'node:fs';
 import { applyToExistingProject, parseOptions, setupFiles, type Runner } from '../tools/church-cloud-setup.ts';
 
-const args = ['--project', 'praiseav-suite', '--church', 'Pilot church', '--owner', 'owner@example.org', '--location', 'europe-west2'];
+const args = ['--project', 'praiseav-suite', '--church', 'Example Church', '--owner', 'owner@example.org', '--location', 'europe-west2'];
 
 test('defaults to a plan that cannot change a project', () => {
   const options = parseOptions(args);
@@ -83,7 +83,7 @@ test('does not change an existing database in another location', () => {
   assert.deepEqual(mock.calls.map((c) => c.args[0]), ['projects:list', 'apps:list', 'firestore:databases:list']);
 });
 
-test('pilot setup targets only its named Firebase project and two deployable resources', () => {
+test('church setup targets only its named Firebase project and two deployable resources', () => {
   const mock = mockRunner({ firestoreDisabled: true });
   const result = applyToExistingProject(parseOptions([...args, '--apply']), mock.run);
   try {

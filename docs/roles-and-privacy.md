@@ -7,7 +7,7 @@ The church owns its Firebase project and chooses who can use it. The Suite's gen
 | Owner, admin | All church records and member profiles | All church records; each person edits their own profile |
 | Office staff | Service plans and opt-in member directory | Opens invitation email drafts; an administrator approves access and assigns roles |
 | Planner | Services and songs | Services and songs |
-| Preacher | Services and songs | None |
+| Preacher | Services, songs and their allocated private sermon drafts | Notes, native slides and media cues for their allocated sermons |
 | Worship leader | Services and songs | Services and songs |
 | AV, musician | Services and songs | None |
 | People | People directory, including pastoral notes | People directory |
@@ -26,4 +26,8 @@ Child pickup verification codes stay at the check-in desk. A public parent page 
 
 Giving records are an internal ledger, not a payment system, tax return, or verified Gift Aid claim. The potential Gift Aid figures are estimates for the church's finance team to review against declarations and current HMRC rules. Exported CSV and backup JSON files contain personal data and are not encrypted.
 
-The static website stores only the chosen Firebase project connection details in localStorage. Church records are in that church's Firestore project. The sample mode uses example data in memory. Older browser records remain readable for backup but are not uploaded automatically.
+The static website stores only the chosen Firebase project connection details in localStorage. Church records are in that church's Firestore project. The live workspace opens only after church sign-in. Older browser records remain readable for backup but are not uploaded automatically.
+
+Private sermon drafts are stored separately from the shared running order. Administrators/planners/worship leaders can manage them; AV can read them; musicians cannot. The assigned preacher can edit their own slot without changing the rest of the service. These draft permissions require church rules v2. Existing churches use the same generated rules through Church access → update/check rules.
+
+Local Sunday tablets have a simpler, separate approval at the booth: Band (read-only), Preacher, or both. There is no weekly tablet-to-sermon assignment. A preacher-approved tablet can see notes and control slides/media of whichever sermon is currently live. Treat that approval as trusted preacher access. Removing a Suite login does not revoke an already approved offline local tablet; remove the tablet in PraiseAV’s Allowed devices too.

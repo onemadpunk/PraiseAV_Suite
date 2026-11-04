@@ -28,6 +28,7 @@ export const PRAISEAV_THEME_PRESETS: PraiseAVThemePreset[] = [
 ];
 
 interface Props {
+  suiteLink?:string;
   activePlan: ServicePlan | undefined;
   songs: Song[];
   activeThemePreset: PraiseAVThemePreset;
@@ -35,7 +36,7 @@ interface Props {
 }
 
 export const PraseAVBridgeWorkspace: React.FC<Props> = ({
-  activePlan, songs, activeThemePreset, onSelectThemePreset,
+  activePlan, songs, activeThemePreset, onSelectThemePreset, suiteLink,
 }) => {
   const [folderLink, setFolderLink] = useState<ServiceFolderLink | null>(null);
   const [busy, setBusy] = useState(false);
@@ -67,7 +68,7 @@ export const PraseAVBridgeWorkspace: React.FC<Props> = ({
       const permission = await (link.directory as WritableDirectory).requestPermission({ mode: 'readwrite' });
       if (permission !== 'granted') throw new Error('Folder access was not granted. Use Download .praiseav file instead.');
       const result = await writeServiceToFolder(
-        link.directory, toPraiseAVService(activePlan, songs), link.lastExports[activePlan.id],
+        link.directory, toPraiseAVService(activePlan, songs, suiteLink), link.lastExports[activePlan.id],
       );
       const updated = { ...link, lastExports: { ...link.lastExports, [activePlan.id]: result.hash } };
       setFolderLink(updated);
@@ -103,7 +104,7 @@ export const PraseAVBridgeWorkspace: React.FC<Props> = ({
 
   const download = () => {
     if (!activePlan) return;
-    const service = toPraiseAVService(activePlan, songs);
+    const service = toPraiseAVService(activePlan, songs, suiteLink);
     const blob = new Blob([JSON.stringify(service, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
@@ -121,7 +122,8 @@ export const PraseAVBridgeWorkspace: React.FC<Props> = ({
       <li>In PraiseAV Windows, open More → Church sharing to see or choose its Services folder.</li>
       <li>Use Send to PraiseAV folder below and choose that same folder in this browser. If it is a synced OneDrive or Google Drive folder, the file can reach the church computer through that service.</li>
       <li>Open the service in PraiseAV Windows. If you send a later update, the AV desk sees a notice and chooses when to load it. PraiseAV never changes the live slide without the operator.</li>
-      <li>Attach any visiting speaker presentation or media file on the desktop before the service. The export includes its name, not its contents.</li>
+      <li>Assign the preacher in My sermon & tablet. They save notes and slides, add videos/music to the shared folder and use Send my sermon to church. The desktop combines their published contribution with this service and checks every file before marking it Ready.</li>
+      <li>Other visiting-speaker presentation placeholders still need their original PowerPoint or PDF added on the desktop.</li>
     </ol>
     {canChooseFolder && <div className="space-y-2 rounded border border-sky-500/40 p-4">
       <p className="text-sm">{folderLink ? `Folder remembered in this browser: ${folderLink.directory.name}` : 'Choose the Services folder once; this browser can remember it for later transfers.'}</p>

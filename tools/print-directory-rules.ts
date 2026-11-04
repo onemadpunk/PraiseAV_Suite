@@ -1,5 +1,5 @@
 import { churchRules } from '../src/services/churchRules.ts';
 
 const owner = process.argv[2];
-if (!owner) throw new Error('Pass the existing pilot owner email.');
+if (!owner) throw new Error('Pass the existing Suite site owner email.');
 process.stdout.write(churchRules(owner, true) + '\n');

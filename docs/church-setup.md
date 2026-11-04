@@ -4,15 +4,13 @@ A church administrator needs a Google account that the church controls. That acc
 
 ## Where to open the Suite
 
-For the existing `praiseav-suite` pilot, use **https://praiseav-suite.web.app/**. Google sign-in and church-owner access were verified there on 2 November 2026. This Firebase Hosting site uses the pilot's existing Spark project; it does not require a paid plan. The GitHub Pages address is still available, but its sign-in did not pass the pilot browser test.
+Open **https://praiseav-suite.web.app/**, or follow your church’s invitation link. Returning users sign into their connected church. New users find their church or follow the one-time church setup below.
 
-The planned public address is **suite.praiseav.com**. The current **praiseav.com** site links to the tested Firebase Hosting pilot. The existing GitHub Pages build remains at **onemadpunk.github.io/PraiseAV_Suite/**, but its sign-in is unverified. When moving a church to a new address, keep both addresses in that project's Firebase Authentication → Authorized domains until sign-in has been tested on the new address. The Suite builds with relative asset paths and creates invitation links from the address currently open in the browser.
-
-If moving to `suite.praiseav.com`, add it as a custom domain for the existing Firebase Hosting site and follow the DNS records shown by Firebase Console. Then add the new domain to Firebase Authentication's authorised domains and the existing Google OAuth web client's JavaScript origins and redirect URI. Test HTTPS and Google sign-in there before changing the link on praiseav.com. This changes only the Suite website address; it does not move any church's Firestore records or require a paid Firebase plan.
+All churches use the same Suite website. Each church connects its own Firebase project for accounts and church records; opening the website does not put a new church’s records in PraiseAV’s registration project.
 
 ## One-time setup for a church administrator
 
-Only one administrator per church uses Firebase Console. Volunteers and congregation members receive a church link; they do not create Firebase projects. PraiseAV Windows works without Firebase. The Suite's sample mode is for exploration and does not save new changes.
+Only one administrator per church uses Firebase Console. Volunteers and congregation members receive a church link; they do not create Firebase projects. PraiseAV Windows works without Firebase. The Suite opens your church workspace after sign-in; it does not open an unsaved example workspace.
 
 At the Suite start page, enter the church name and town and choose **Find church**. If a church with that name is already registered, ask its administrator for the church link. They can approve your access; you do not need another Firebase project. If it is a different congregation with the same name, add its neighbourhood to the name. If there is no match, choose **Set up this church** and sign in with the church administrator's Google account. This reserves the name and town for about two weeks while setup is completed. An unfinished reservation then expires without anyone at PraiseAV reviewing it.
 
@@ -36,11 +34,11 @@ Firebase project creation is a guided manual step because doing it automatically
 3. In Firebase Console, open Firestore → Rules. Replace the starter rules with the generated rules and publish them.
 4. Tick **I published these rules in Firestore** in the Suite checklist, then click **Connect and sign in** using the same administrator Google account. The Suite completes the church's directory entry at this point.
 
-The owner email is embedded in the rules. Check it carefully before publishing. If it changes, the Firebase project owner can replace the rules in Firebase Console. Rules are maintained in each church project; when the Suite's rules change in a future release, administrators may need to publish the new version.
+The owner email is embedded in the rules. Check it carefully before publishing. If it changes, the Firebase project owner can replace the rules in Firebase Console. The Suite checks a read-only rules version when connecting a new church and under **Church access**. Rules are maintained in each church project. Rule updates currently use Firebase Console. An owner-authorised updater is tracked in the internal development checklist.
 
 The PraiseAV registration directory stores the church name, town, setup status and project ID only; it holds no church records or member contact details. A name and town match prevents ordinary accidental duplicate setups, but email verification cannot prove that someone officially represents a church. PraiseAV does not certify churches. See [church directory operations](church-directory.md).
 
-**Existing church projects upgrading to the current roles and directory:** open **Church access → Copy updated security rules**, paste them into that church's Firestore → Rules, and publish before using the new roles or directory. In Firebase Authentication → Sign-in method, enable **Email/Password** if ordinary email registration is wanted. Leave **Email link** off. Repeat this rules update in each church's own Firebase project. These changes do not require a paid Firebase plan.
+**Existing church projects upgrading to the current roles, directory and private sermon drafts (rules v2):** open **Church access → Copy updated security rules**, paste them into that church's Firestore → Rules, and publish before using the new roles or directory. In Firebase Authentication → Sign-in method, enable **Email/Password** if ordinary email registration is wanted. Leave **Email link** off. Repeat this rules update in each church's own Firebase project. These changes do not require a paid Firebase plan.
 
 ## 3. Invite the team
 
@@ -58,13 +56,13 @@ A browser backup is an ordinary unencrypted JSON file containing personal data. 
 
 ## 5. Connect to PraiseAV Windows
 
-In the Suite, choose a service, then open **PraiseAV export**. In Chrome or another browser with folder access, click **Send to PraiseAV folder** and choose the same **PraiseAV Services** folder that PraiseAV Windows uses. The Suite remembers the folder in that browser and can send later versions with one click. PraiseAV must reopen the service to see a newer file. The Suite refuses to replace the file if PraiseAV or another computer has changed it since the last transfer.
+In the Suite, choose a service, then open **PraiseAV export**. In Chrome or another browser with folder access, click **Send to PraiseAV folder** and choose the same **PraiseAV Services** folder that PraiseAV Windows uses. The Suite remembers the folder in that browser and can send later versions with one click. If PraiseAV already has that service open, the AV desk sees an update notice and chooses when to load the new version. The Suite refuses to replace the file if PraiseAV or another computer has changed it since the last transfer.
 
 If your browser cannot choose a folder, use **Download .praiseav file** and open it in PraiseAV through Service → Open → More choices → Open from somewhere else, or move it to the PraiseAV Services folder yourself.
 
 On first run, PraiseAV asks whether you plan to use the Suite or prepare on another computer. Choose Yes to open the optional Church sharing guide. Choose Not now to keep local folders. Later, open More → Church sharing in PraiseAV. If the Suite and PraiseAV run on different computers, both must use the same locally synced OneDrive or Google Drive folder. A cloud folder is shared only after you choose and confirm it.
 
-The service file carries the order, the song words your church entered, and service-specific key and arrangement choices. Large media and visiting speaker presentation files are not embedded. Attach those files and run Ready for Sunday on the church computer before the service.
+The service file carries the order, the song words your church entered, and service-specific key and arrangement choices. Video and music published from My sermon & tablet travel as separate verified files in PraiseAV Assets alongside the service. The desktop waits for them before opening, then caches them for offline use. Visiting-speaker PowerPoint/PDF files still need desktop import. See workflows.md for the home-to-Sunday sermon steps.
 
 ## Share the band plan and follow live
 
@@ -75,3 +73,5 @@ For live following, send the updated `.praiseav` service file to PraiseAV Window
 ## Costs and support boundary
 
 The Suite itself has no subscription or payment processor. Firebase's free Spark plan has service quotas; reaching them can interrupt cloud features. Every church owns and administers its own project, so there is no single PraiseAV database quota shared across all churches. The Windows application continues to work without Firebase or an internet connection.
+
+On 4 November 2026 the hosted Suite received the My sermon & tablet workspace, shared-folder video/music publication, remembered local-view return links, private-draft backup support, and church rules v2. This updates the registration project only. Newly generated church setups use v2; an existing independent church project must install the current rules before private sermon drafts are available.

@@ -220,7 +220,7 @@ export const ServicesWorkspace: React.FC<ServicesWorkspaceProps> = ({
   };
 
   const handleExportPraiseBundle = () => {
-    const bundle = toPraiseAVService(activePlan, songs);
+    const bundle = toPraiseAVService(activePlan, songs, shareUrl);
     const blob = new Blob([JSON.stringify(bundle, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');

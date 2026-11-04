@@ -1,7 +1,7 @@
 {
   "firestore": {
     "database": "(default)",
-    "rules": ".firebase-cli/pilot-directory.rules"
+    "rules": ".firebase-cli/directory.rules"
   },
   "hosting": {
     "public": "dist",
