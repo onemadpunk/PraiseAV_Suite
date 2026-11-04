@@ -27,6 +27,17 @@ test('Rules separate child and finance records by role', () => {
   assert.match(rules, /email_verified == true/);
 });
 
+test('new church rules include opt-in directory and the church team roles', () => {
+  const rules = churchRules('av@example.org');
+  assert.match(rules, /match \/directoryListings\/\{uid\}/);
+  assert.match(rules, /allow read: if approved\(\);/);
+  assert.match(rules, /consentAt == request\.time/);
+  assert.match(rules, /request\.resource\.data\.email == request\.auth\.token\.email/);
+  assert.match(rules, /'office_staff', 'planner', 'preacher', 'worship_leader'/);
+  assert.match(rules, /match \/profiles\/\{uid\}/);
+  assert.match(rules, /request\.auth\.uid == uid/);
+});
+
 test('Backup import rejects malformed and duplicate record IDs', () => {
   const empty = { plans: [], songs: [], members: [], childrenList: [], smallGroups: [], roomBookings: [], donations: [] };
   assert.deepEqual(parseChurchBackup(empty), empty);
@@ -48,4 +59,11 @@ test('client access matrix keeps children, giving and people records in separate
   assert.equal(canRead(session(['kids']), 'donations'), false);
   assert.equal(canRead(session(['finance']), 'donations'), true);
   assert.equal(canWrite(session(['finance']), 'donations'), true);
+  assert.equal(canRead(session(['preacher']), 'plans'), true);
+  assert.equal(canWrite(session(['preacher']), 'plans'), false);
+  assert.equal(canRead(session(['worship_leader']), 'songs'), true);
+  assert.equal(canWrite(session(['worship_leader']), 'plans'), true);
+  assert.equal(canRead(session(['office_staff']), 'plans'), true);
+  assert.equal(canRead(session(['office_staff']), 'members'), false);
+  for (const domain of sensitive) assert.equal(canRead(session(['family']), domain), false);
 });

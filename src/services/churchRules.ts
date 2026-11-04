@@ -22,6 +22,9 @@ service cloud.firestore {
         && role in membership().data.roles;
     }
     function admin() { return owner() || hasRole('admin'); }
+    function approved() {
+      return owner() || (verified() && exists(/databases/$(database)/documents/memberships/$(request.auth.uid)));
+    }
     function validRecord(id) { return request.resource.data.id == id; }
 
     ${includeDirectory ? `// PraiseAV's small registration index. No church records are stored here.
@@ -70,7 +73,7 @@ service cloud.firestore {
       allow read: if admin() || (verified() && request.auth.uid == uid);
       allow create, update: if admin() && request.resource.data.uid == uid
         && request.resource.data.roles is list
-        && request.resource.data.roles.hasOnly(['admin', 'planner', 'av', 'musician', 'people', 'kids', 'finance', 'member']);
+        && request.resource.data.roles.hasOnly(['admin', 'office_staff', 'planner', 'preacher', 'worship_leader', 'av', 'musician', 'people', 'kids', 'finance', 'member', 'family']);
       allow delete: if admin();
     }
     match /joinRequests/{uid} {
@@ -94,15 +97,43 @@ service cloud.firestore {
         && request.resource.data.updatedAt is string;
       allow delete: if admin() || (verified() && request.auth.uid == uid);
     }
+    // A separate opt-in projection. Staff notes, children, DBS and private profile fields
+    // cannot enter the member directory through this collection.
+    match /directoryListings/{uid} {
+      allow read: if approved();
+      allow create, update: if approved() && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly(['uid', 'displayName', 'householdName', 'email', 'contactNumber', 'showHousehold', 'showEmail', 'showPhone', 'consentVersion', 'consentAt'])
+        && request.resource.data.keys().hasAll(['uid', 'displayName', 'householdName', 'email', 'contactNumber', 'showHousehold', 'showEmail', 'showPhone', 'consentVersion', 'consentAt'])
+        && request.resource.data.uid == uid
+        && request.resource.data.displayName is string
+        && request.resource.data.displayName.size() > 0
+        && request.resource.data.displayName.size() <= 100
+        && request.resource.data.showHousehold is bool
+        && request.resource.data.showEmail is bool
+        && request.resource.data.showPhone is bool
+        && request.resource.data.householdName is string
+        && request.resource.data.householdName.size() <= 100
+        && (!request.resource.data.showHousehold || request.resource.data.householdName.size() > 0)
+        && (request.resource.data.showHousehold || request.resource.data.householdName == '')
+        && request.resource.data.email is string
+        && (request.resource.data.showEmail ? request.resource.data.email == request.auth.token.email : request.resource.data.email == '')
+        && request.resource.data.contactNumber is string
+        && request.resource.data.contactNumber.size() <= 40
+        && (!request.resource.data.showPhone || request.resource.data.contactNumber.size() > 0)
+        && (request.resource.data.showPhone || request.resource.data.contactNumber == '')
+        && request.resource.data.consentVersion == 'v1'
+        && request.resource.data.consentAt == request.time;
+      allow delete: if admin() || (approved() && request.auth.uid == uid);
+    }
     match /plans/{id} {
-      allow read: if admin() || hasRole('planner') || hasRole('av') || hasRole('musician');
-      allow create, update: if (admin() || hasRole('planner')) && validRecord(id);
-      allow delete: if admin() || hasRole('planner');
+      allow read: if admin() || hasRole('planner') || hasRole('preacher') || hasRole('worship_leader') || hasRole('office_staff') || hasRole('av') || hasRole('musician');
+      allow create, update: if (admin() || hasRole('planner') || hasRole('worship_leader')) && validRecord(id);
+      allow delete: if admin() || hasRole('planner') || hasRole('worship_leader');
     }
     match /songs/{id} {
-      allow read: if admin() || hasRole('planner') || hasRole('av') || hasRole('musician');
-      allow create, update: if (admin() || hasRole('planner')) && validRecord(id);
-      allow delete: if admin() || hasRole('planner');
+      allow read: if admin() || hasRole('planner') || hasRole('preacher') || hasRole('worship_leader') || hasRole('av') || hasRole('musician');
+      allow create, update: if (admin() || hasRole('planner') || hasRole('worship_leader')) && validRecord(id);
+      allow delete: if admin() || hasRole('planner') || hasRole('worship_leader');
     }
     match /members/{id} {
       allow read: if admin() || hasRole('people');

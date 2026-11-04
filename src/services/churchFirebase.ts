@@ -6,7 +6,7 @@ import {
 } from 'firebase/auth';
 import { Firestore, collection, deleteDoc, doc, getDoc, getFirestore, onSnapshot, setDoc, writeBatch } from 'firebase/firestore';
 
-export type ChurchRole = 'admin' | 'planner' | 'av' | 'musician' | 'people' | 'kids' | 'finance' | 'member';
+export type ChurchRole = 'admin' | 'office_staff' | 'planner' | 'preacher' | 'worship_leader' | 'av' | 'musician' | 'people' | 'kids' | 'finance' | 'member' | 'family';
 export type DataDomain = 'plans' | 'songs' | 'members' | 'checkins' | 'groups' | 'bookings' | 'donations';
 
 export interface ChurchConnection {
@@ -26,7 +26,7 @@ export interface ChurchSession {
 
 const STORAGE_KEY = 'praiseav_suite_church_connection_v1';
 const DOMAINS: DataDomain[] = ['plans', 'songs', 'members', 'checkins', 'groups', 'bookings', 'donations'];
-const ROLE_LIST: ChurchRole[] = ['admin', 'planner', 'av', 'musician', 'people', 'kids', 'finance', 'member'];
+const ROLE_LIST: ChurchRole[] = ['admin', 'office_staff', 'planner', 'preacher', 'worship_leader', 'av', 'musician', 'people', 'kids', 'finance', 'member', 'family'];
 
 export function parseFirebaseConfigText(text: string): Record<string, string> {
   try {
@@ -135,7 +135,7 @@ export async function getChurchRoles(db: Firestore, user: User, ownerEmail: stri
 export function canRead(session: ChurchSession, domain: DataDomain): boolean {
   if (session.owner || session.roles.includes('admin')) return true;
   const allowed: Record<DataDomain, ChurchRole[]> = {
-    plans: ['planner', 'av', 'musician'], songs: ['planner', 'av', 'musician'],
+    plans: ['planner', 'preacher', 'worship_leader', 'av', 'musician', 'office_staff'], songs: ['planner', 'preacher', 'worship_leader', 'av', 'musician'],
     members: ['people'], checkins: ['kids'], groups: ['member'],
     bookings: ['member'], donations: ['finance'],
   };
@@ -145,7 +145,7 @@ export function canRead(session: ChurchSession, domain: DataDomain): boolean {
 export function canWrite(session: ChurchSession, domain: DataDomain): boolean {
   if (session.owner || session.roles.includes('admin')) return true;
   const allowed: Partial<Record<DataDomain, ChurchRole[]>> = {
-    plans: ['planner'], songs: ['planner'], members: ['people'],
+    plans: ['planner', 'worship_leader'], songs: ['planner', 'worship_leader'], members: ['people'],
     checkins: ['kids'], groups: [], bookings: [], donations: ['finance'],
   };
   return (allowed[domain] || []).some((role) => session.roles.includes(role));
@@ -201,7 +201,10 @@ export async function approveChurchAccess(session: ChurchSession, uid: string, e
 
 export async function removeChurchAccess(session: ChurchSession, uid: string) {
   if (!session.owner && !session.roles.includes('admin')) throw new Error('Only a church administrator can remove access.');
-  await deleteDoc(doc(session.db, 'memberships', uid));
+  const batch = writeBatch(session.db);
+  batch.delete(doc(session.db, 'directoryListings', uid));
+  batch.delete(doc(session.db, 'memberships', uid));
+  await batch.commit();
 }
 
 export async function updateChurchAccess(session: ChurchSession, uid: string, email: string, roles: ChurchRole[]) {

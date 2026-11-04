@@ -23,6 +23,7 @@ import {
 import { CheckInsWorkspace } from './components/CheckInsWorkspace';
 import { ChurchAdminPanel } from './components/ChurchAdminPanel';
 import { ChurchGate } from './components/ChurchGate';
+import { ChurchDirectoryWorkspace } from './components/ChurchDirectoryWorkspace';
 import { GroupsAndGivingWorkspace } from './components/GroupsAndGivingWorkspace';
 import { PeopleAndRotasWorkspace } from './components/PeopleAndRotasWorkspace';
 import {
@@ -64,6 +65,7 @@ type ActiveModule =
   | 'songs'
   | 'band'
   | 'people'
+  | 'directory'
   | 'checkins'
   | 'groups-giving'
   | 'praise-av';
@@ -73,6 +75,7 @@ const MODULE_TITLES: Record<ActiveModule, string> = {
   songs: 'Song library',
   band: 'Band stand',
   people: 'People & rotas',
+  directory: 'Church directory',
   checkins: 'Kids check-ins',
   'groups-giving': 'Groups, rooms & giving',
   'praise-av': 'PraiseAV export',
@@ -85,7 +88,7 @@ function defaultModule(session: ChurchSession | null): ActiveModule {
   if (canRead(session, 'members')) return 'people';
   if (canRead(session, 'checkins')) return 'checkins';
   if (canRead(session, 'groups') || canRead(session, 'donations')) return 'groups-giving';
-  return 'praise-av';
+  return 'directory';
 }
 
 function SuiteWorkspace({ session, onExit }: { session: ChurchSession | null; onExit: () => void }) {
@@ -104,7 +107,9 @@ function SuiteWorkspace({ session, onExit }: { session: ChurchSession | null; on
   const [donations, setDonations, donationsReady] = useChurchCollection(session, 'donations', legacy?.donations || INITIAL_DONATIONS, setDataError);
   const [showAdmin, setShowAdmin] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
-  const moduleAllowed = (module: ActiveModule) => !session || module === 'praise-av'
+  const moduleAllowed = (module: ActiveModule) => !session
+    || module === 'directory'
+    || (module === 'praise-av' && canRead(session, 'plans') && canRead(session, 'songs'))
     || (module === 'services' && canRead(session, 'plans'))
     || (module === 'songs' && canRead(session, 'songs'))
     || (module === 'band' && canRead(session, 'plans') && canRead(session, 'songs'))
@@ -279,14 +284,14 @@ function SuiteWorkspace({ session, onExit }: { session: ChurchSession | null; on
         <div className="flex items-center gap-3 shrink-0">
           <a className="text-xs underline" href="https://github.com/onemadpunk/PraiseAV_Suite/blob/main/docs/workflows.md" target="_blank" rel="noreferrer">Help</a>
           {session && <button type="button" className="px-3 py-2 text-xs border rounded-lg" onClick={() => setShowProfile(true)}>My details</button>}
-          {session && (session.owner || session.roles.includes('admin')) && <button type="button" className="px-3 py-2 text-xs border rounded-lg" onClick={() => setShowAdmin(true)}>Church access</button>}
-          <button
+          {session && (session.owner || session.roles.includes('admin') || session.roles.includes('office_staff')) && <button type="button" className="px-3 py-2 text-xs border rounded-lg" onClick={() => setShowAdmin(true)}>Church access</button>}
+          {moduleAllowed('praise-av') && <button
             type="button"
             onClick={() => setActiveModule('praise-av')}
             className="px-4 py-2 text-xs font-semibold text-white bg-sky-600 rounded-lg hover:bg-sky-500 transition-colors whitespace-nowrap shrink-0"
           >
             PraiseAV export
-          </button>
+          </button>}
         </div>
       </header>
       {dataError && <div role="alert" className="px-6 py-2 bg-red-100 text-red-800 text-sm">Could not save or load church data: {dataError} <button className="underline ml-2" onClick={() => setDataError('')}>Dismiss</button></div>}
@@ -351,6 +356,8 @@ function SuiteWorkspace({ session, onExit }: { session: ChurchSession | null; on
                   </span>
                   <span className="font-mono text-[11px] text-slate-400">{members.length}</span>
                 </button>
+
+                {session && <button type="button" onClick={() => setActiveModule('directory')} className={`w-full flex items-center gap-2.5 px-3 py-2 text-xs font-medium rounded-lg ${activeModule === 'directory' ? 'bg-sky-50 dark:bg-sky-950/60 text-sky-700 dark:text-sky-300 font-semibold' : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'}`}><Users className="w-4 h-4" /> Church directory</button>}
 
                 <button
                   type="button"
@@ -552,6 +559,8 @@ function SuiteWorkspace({ session, onExit }: { session: ChurchSession | null; on
               }
             />
           )}
+
+          {activeModule === 'directory' && session && <ChurchDirectoryWorkspace session={session} onEdit={() => setShowProfile(true)} />}
 
           {activeModule === 'checkins' && (
             <CheckInsWorkspace
