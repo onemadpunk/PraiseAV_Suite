@@ -74,7 +74,7 @@ export const PraseAVBridgeWorkspace: React.FC<Props> = ({
       await rememberServiceFolderLink(updated);
       setTransferMessage(result.unchanged
         ? `${activePlan.title} is already up to date in ${link.directory.name}.`
-        : `Saved ${result.fileName} in ${link.directory.name}. Open it from PraiseAV’s Services list; reopen it there after later updates.`);
+        : `Saved ${result.fileName} in ${link.directory.name}. Open it from PraiseAV’s Services list. If it is already open, PraiseAV will offer the updated version at the AV desk.`);
     } catch (error) {
       if (error instanceof DOMException && error.name === 'AbortError') return;
       setTransferMessage(error instanceof Error ? error.message : 'Could not save to the selected folder. Use Download .praiseav file instead.');
@@ -120,7 +120,7 @@ export const PraseAVBridgeWorkspace: React.FC<Props> = ({
       <li>Choose the service plan in the Services page.</li>
       <li>In PraiseAV Windows, open More → Church sharing to see or choose its Services folder.</li>
       <li>Use Send to PraiseAV folder below and choose that same folder in this browser. If it is a synced OneDrive or Google Drive folder, the file can reach the church computer through that service.</li>
-      <li>Open the service in PraiseAV Windows. Reopen it after sending a later update.</li>
+      <li>Open the service in PraiseAV Windows. If you send a later update, the AV desk sees a notice and chooses when to load it. PraiseAV never changes the live slide without the operator.</li>
       <li>Attach any visiting speaker presentation or media file on the desktop before the service. The export includes its name, not its contents.</li>
     </ol>
     {canChooseFolder && <div className="space-y-2 rounded border border-sky-500/40 p-4">

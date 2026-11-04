@@ -31,9 +31,10 @@ test('Suite service opens in the actual PraiseAV desktop reader', { skip: !deskt
   try {
     writeFileSync(file, JSON.stringify(toPraiseAVService(plan, [song])), 'utf8');
     const opened = services.open(file, {
-      addSong: (copy: { title: string; lyrics: string }) => {
+      addSong: (copy: { title: string; lyrics: string; song_key: string }) => {
         assert.equal(copy.title, song.title);
         assert.match(copy.lyrics, /Original test words/);
+        assert.equal(copy.song_key, 'C');
         return { id: 'desktop_song', status: 'imported', title: copy.title };
       },
       findSongsByTitle: () => [],
