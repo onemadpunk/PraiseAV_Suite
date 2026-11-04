@@ -1,6 +1,6 @@
-# Church cloud setup assistant — pilot
+# Optional developer cloud setup assistant
 
-This pilot explores a simpler, church-owned setup. It is **not yet a public setup button**. The current Suite setup guide remains the supported path until an end-to-end Suite sign-in test succeeds.
+The public Suite has a guided setup for a church-owned Firebase project; see [church setup](church-setup.md). The command-line helper below is an optional developer tool for inspecting or provisioning a project under its owner's Google login. Ordinary churches should use the Suite's guided checklist. The `praiseav-suite` project hosts the public registration directory and a pilot church; it is not a shared database for other churches' records.
 
 The pilot helper is `tools/church-cloud-setup.ts`. It uses the official Firebase CLI under the church administrator's Google login. It does not request a password, service-account key, or refresh token. Its default run prints a plan and changes nothing. `--apply` requires the exact project ID, verifies the signed-in account can see that project, and stops when the web app is ambiguous. It never deploys Hosting or Cloud Functions.
 
