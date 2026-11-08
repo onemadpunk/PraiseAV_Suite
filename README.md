@@ -5,6 +5,7 @@ PraiseAV Suite plans services and keeps church records. Open https://praiseav-su
 ## Start here
 
 - [Live hosting and deployment](docs/hosting.md): publish the Suite website.
+- ["Let the team know" emails](docs/team-emails.md): the PraiseAV mail service and its one-time setup.
 - [Church-owned setup](docs/church-setup.md): connect a Firebase project, sign in, invite people, and migrate older browser data.
 - [Roles and privacy](docs/roles-and-privacy.md): who can see each kind of record, backups, child pickup codes, and data ownership.
 - [Using the Suite with PraiseAV](docs/workflows.md): service exports, songs, presentation files, rotas, and current limits.

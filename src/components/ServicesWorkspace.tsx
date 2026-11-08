@@ -38,6 +38,7 @@ import type { ChurchSession } from '../services/churchFirebase';
 import { uploadCloudFile } from '../services/cloudFiles';
 import { cloudFileKind } from '../utils/cloudFiles';
 import { teamNoticeFor } from '../utils/teamNotices';
+import { emailTeam } from '../services/teamEmail';
 
 interface ServicesWorkspaceProps {
   plans: ServicePlan[];
@@ -372,11 +373,14 @@ export const ServicesWorkspace: React.FC<ServicesWorkspaceProps> = ({
               type="button"
               className="px-3 py-2 text-xs font-semibold rounded-lg bg-sky-600 text-white"
               title="Everyone on this service's rota sees it in the Suite and can say whether they can serve."
-              onClick={() => {
+              onClick={async () => {
                 const resend = Boolean(activePlan.teamNotice);
                 if (resend && !confirm('The team was told on ' + new Date(activePlan.teamNotice!.sentAt).toLocaleString() + '. Tell them again (for example after changing songs)?')) return;
-                onUpdatePlan({ ...activePlan, teamNotice: teamNoticeFor(session.user.email || '') });
-                setShareNotice('Done. Everyone on the rota sees “You’re on the rota” in the Suite, with the songs, keys and a button to say whether they can serve. Their replies appear in the rota.');
+                const told = { ...activePlan, teamNotice: teamNoticeFor(session.user.email || '') };
+                onUpdatePlan(told);
+                setShareNotice('Telling the team…');
+                const emailed = await emailTeam(session, told, teamEmails, shareUrl).catch(() => 'Emails could not be sent just now.');
+                setShareNotice('Done. Everyone on the rota sees “You’re on the rota” in the Suite, with the songs, keys and a button to say whether they can serve. ' + emailed);
               }}
             >
               {activePlan.teamNotice ? 'Tell the team again' : 'Let the team know'}
