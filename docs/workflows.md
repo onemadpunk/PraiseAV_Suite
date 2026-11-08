@@ -33,3 +33,7 @@ Kids staff can record check-in and check-out, pickup codes, and medical notes. A
 PraiseAV Windows runs independently and offline. Church mode needs a connection to Firebase to sign in and save shared records. Download backups regularly.
 
 Administrator JSON backups include private sermon drafts as well as the running order. Media bytes remain in the shared Services/PraiseAV Assets folder and need their own folder backup. Restoring an older JSON without sermonDrafts leaves existing private drafts intact. After restoring drafts, republish any sermon that needs to reach the booth.
+
+## Letting the band know
+
+When the songs and keys are set, the worship leader presses **Let the team know** on the service. Everyone on that service's rota then sees **You're on the rota** at the top of Band stand (with a number on Band stand in the menu) until they answer **I can serve** or **Can't make it**; their answers show in the rota. **Tell the team again** repeats it after a change. **Copy team message** and **Email team** still work for anyone who doesn't open the Suite.

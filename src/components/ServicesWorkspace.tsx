@@ -37,6 +37,7 @@ import { assignedEmailAddresses, emailFingerprint, serviceTeamMessage } from '..
 import type { ChurchSession } from '../services/churchFirebase';
 import { uploadCloudFile } from '../services/cloudFiles';
 import { cloudFileKind } from '../utils/cloudFiles';
+import { teamNoticeFor } from '../utils/teamNotices';
 
 interface ServicesWorkspaceProps {
   plans: ServicePlan[];
@@ -366,6 +367,21 @@ export const ServicesWorkspace: React.FC<ServicesWorkspaceProps> = ({
             <Printer className="w-3.5 h-3.5" />
             Print sheet
           </button>
+          {session && activePlan.rota.length > 0 && (
+            <button
+              type="button"
+              className="px-3 py-2 text-xs font-semibold rounded-lg bg-sky-600 text-white"
+              title="Everyone on this service's rota sees it in the Suite and can say whether they can serve."
+              onClick={() => {
+                const resend = Boolean(activePlan.teamNotice);
+                if (resend && !confirm('The team was told on ' + new Date(activePlan.teamNotice!.sentAt).toLocaleString() + '. Tell them again (for example after changing songs)?')) return;
+                onUpdatePlan({ ...activePlan, teamNotice: teamNoticeFor(session.user.email || '') });
+                setShareNotice('Done. Everyone on the rota sees “You’re on the rota” in the Suite, with the songs, keys and a button to say whether they can serve. Their replies appear in the rota.');
+              }}
+            >
+              {activePlan.teamNotice ? 'Tell the team again' : 'Let the team know'}
+            </button>
+          )}
           {shareUrl && <>
             <button type="button" className="px-3 py-2 text-xs font-medium border border-slate-300 dark:border-slate-700 rounded-lg" onClick={async () => {
               try { await navigator.clipboard.writeText(teamMessage); setShareNotice('Service order and team link copied. Send it to your rota using your usual messaging app.'); }

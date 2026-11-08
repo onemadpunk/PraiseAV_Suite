@@ -53,6 +53,7 @@ import { doc, onSnapshot } from 'firebase/firestore';
 import { saveRotaReply, subscribeRotaReplies } from './services/rotaReplies';
 import { indexRotaReplies, type RotaReplyDoc, type RotaReplyIndex, type RotaReplyStatus } from './utils/rotaReplies';
 import { emailFingerprint } from './utils/serviceSharing';
+import { pendingTeamNotices } from './utils/teamNotices';
 
 type ActiveModule =
   | 'services'
@@ -123,6 +124,10 @@ function SuiteWorkspace({ session, onExit }: { session: ChurchSession; onExit: (
     return () => { active = false; };
   }, [replyDocs]);
   const myReplyDoc = session ? replyDocs.find((entry) => entry.uid === session.user.uid) || null : null;
+  // "You're on the rota" notices not yet answered: the number on Band stand.
+  const [myEmailHash, setMyEmailHash] = useState('');
+  useEffect(() => { let live = true; emailFingerprint(session?.user.email || '').then((hash) => { if (live) setMyEmailHash(hash); }); return () => { live = false; }; }, [session?.user.email]);
+  const rotaNotices = pendingTeamNotices(plans, myEmailHash, myReplyDoc?.replies || {}, new Date().toISOString().slice(0, 10)).length;
   const handleRotaReply = async (planId: string, status: RotaReplyStatus | null) => {
     if (!session) return;
     try { await saveRotaReply(session, myReplyDoc, planId, status); }
@@ -356,6 +361,7 @@ function SuiteWorkspace({ session, onExit }: { session: ChurchSession; onExit: (
 
                 <button type="button" onClick={() => setActiveModule('band')} className={`w-full flex items-center px-3 py-2 text-xs font-medium rounded-lg ${activeModule === 'band' ? 'bg-sky-50 dark:bg-sky-950/60 text-sky-700 dark:text-sky-300 font-semibold' : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'}`}>
                   <Headphones className="w-4 h-4 mr-2.5" /> Band stand
+                  {rotaNotices > 0 && <span className="ml-auto rounded-full bg-sky-600 text-white text-[10px] font-bold px-1.5" aria-label={`${rotaNotices} new rota notice${rotaNotices === 1 ? '' : 's'}`}>{rotaNotices}</span>}
                 </button>
                 {moduleAllowed('sermons') && <button type="button" onClick={()=>setActiveModule('sermons')} className="w-full text-left px-3 py-2 text-xs rounded-lg">My sermon & tablet</button>}
                 <button

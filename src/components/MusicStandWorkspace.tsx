@@ -4,6 +4,7 @@ import { ALL_KEYS, parseChordProForSheet, transposeChordPro } from '../utils/mus
 import { arrangeChordPro } from '../utils/songArrangement';
 import { assignmentsForEmailHash, emailFingerprint } from '../utils/serviceSharing';
 import type { RotaReplyStatus } from '../utils/rotaReplies';
+import { pendingTeamNotices } from '../utils/teamNotices';
 
 import { TabletConnection } from './TabletConnection';
 interface Props { plans: ServicePlan[]; songs: Song[]; initialPlanId?: string; userEmail?: string; churchId?:string; myReplies?: Record<string, RotaReplyStatus>; onReply?: (planId: string, status: RotaReplyStatus | null) => Promise<void> | void; }
@@ -30,6 +31,7 @@ export function MusicStandWorkspace({ plans, songs, initialPlanId, userEmail = '
   const plan = plans.find((entry) => entry.id === planId) || plans[0];
   const mySchedule = plans.map((entry) => ({ plan: entry, assignments: assignmentsForEmailHash(entry, userEmailHash) }))
     .filter((entry) => entry.assignments.length).sort((a, b) => a.plan.date.localeCompare(b.plan.date));
+  const notices = pendingTeamNotices(plans, userEmailHash, myReplies, today);
   const entries = (plan?.items || []).flatMap((item) => {
     const song = songs.find((candidate) => candidate.id === item.songId);
     return song ? [{ item, song }] : [];
@@ -73,6 +75,17 @@ export function MusicStandWorkspace({ plans, songs, initialPlanId, userEmail = '
       <strong>Follow PraiseAV live at church</strong>
       <p>On the church Wi-Fi, ask the AV operator to turn on Remote in PraiseAV Windows. Scan its QR code on this tablet and ask to be approved as a read-only Band stand. That local view follows the live song and slide; your personal capo choice does not change the projector.</p>
     </div>
+    {notices.map(({ plan: told, roles }) => <div key={told.id} role="status" className="rounded-xl border-2 border-sky-500 bg-sky-50 dark:bg-sky-950/40 p-4 space-y-2">
+      <strong className="block">You’re on the rota: {told.title}, {told.date}</strong>
+      <span className="block text-sm">{roles.join(', ')}. The songs and keys are ready to look over below.</span>
+      <div className="flex flex-wrap gap-2">
+        <button type="button" onClick={() => setPlanId(told.id)} className="px-3 py-2 rounded text-sm border">Look at the songs</button>
+        {onReply && <>
+          <button type="button" disabled={replying === told.id} onClick={() => reply(told.id, 'Confirmed')} className="px-3 py-2 rounded text-sm bg-emerald-600 text-white">I can serve</button>
+          <button type="button" disabled={replying === told.id} onClick={() => reply(told.id, 'Declined')} className="px-3 py-2 rounded text-sm border">Can’t make it</button>
+        </>}
+      </div>
+    </div>)}
     {userEmail && <div className="rounded-xl border border-sky-400/50 p-4 space-y-2">
       <h2 className="font-semibold">My schedule</h2>
       {mySchedule.length ? mySchedule.map(({ plan: scheduled, assignments }) => {

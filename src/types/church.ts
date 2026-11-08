@@ -80,6 +80,8 @@ export interface ServicePlan {
   items: ServiceItem[];
   rota: RotaAssignment[];
   sermonAssignments?: Record<string, string>;
+  // Set when the worship leader presses "Let the team know" (utils/teamNotices.ts).
+  teamNotice?: { sentAt: string; sentBy: string };
 }
 
 export interface Song {
