@@ -1,7 +1,7 @@
 // Each church installs these rules in its own Firebase project. A user owning
 // the Google account named here can administer the church from a fresh project;
 // every other person must be approved by an administrator in the Suite.
-export const CHURCH_RULES_VERSION = 'v3';
+export const CHURCH_RULES_VERSION = 'v4';
 
 export function churchRules(ownerEmail: string, includeDirectory = false): string {
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(ownerEmail)) throw new Error('Enter a valid owner email first.');
@@ -153,6 +153,47 @@ service cloud.firestore {
         && request.resource.data.replies.size() <= 200
         && request.resource.data.updatedAt is string;
       allow delete: if admin() || (approved() && request.auth.uid == uid);
+    }
+    // Files published for the booth computer. PraiseAV Windows, signed in with the
+    // AV role, mirrors them into its Services folder and writes a receipt.
+    function validDelivery(id) {
+      return request.resource.data.keys().hasOnly(['id', 'fileName', 'text', 'hash', 'publishedAt', 'publishedBy'])
+        && request.resource.data.keys().hasAll(['id', 'fileName', 'text', 'hash', 'publishedAt', 'publishedBy'])
+        && request.resource.data.id == id
+        && request.resource.data.fileName is string && request.resource.data.fileName.size() <= 200
+        && request.resource.data.text is string && request.resource.data.text.size() <= 900000
+        && request.resource.data.hash is string && request.resource.data.hash.matches('^[0-9a-f]{64}$')
+        && request.resource.data.publishedAt is string
+        && request.resource.data.publishedBy == request.auth.token.email;
+    }
+    match /deliveries/{planId} {
+      function planner() { return admin() || hasRole('planner') || hasRole('worship_leader'); }
+      allow read: if planner() || hasRole('av');
+      allow create, update: if planner() && validDelivery(planId)
+        && request.resource.data.fileName.matches('^PraiseAV Suite [A-Za-z0-9_-]{1,128}[.]praiseav$');
+      allow delete: if planner();
+      match /sermons/{itemId} {
+        function assigned() {
+          return hasRole('preacher')
+            && get(/databases/$(database)/documents/plans/$(planId)).data.sermonAssignments[itemId] == request.auth.token.email;
+        }
+        allow get: if planner() || hasRole('av') || assigned();
+        allow list: if planner() || hasRole('av');
+        allow create, update: if (planner() || assigned()) && validDelivery(itemId)
+          && request.resource.data.fileName == 'Sermon ' + planId + '--' + itemId + '.praiseav-sermon';
+        allow delete: if planner();
+      }
+    }
+    match /deliveryReceipts/{id} {
+      allow read: if approved();
+      allow create, update: if (admin() || hasRole('av'))
+        && request.resource.data.keys().hasOnly(['id', 'hash', 'receivedAt', 'booth'])
+        && request.resource.data.keys().hasAll(['id', 'hash', 'receivedAt', 'booth'])
+        && request.resource.data.id == id
+        && request.resource.data.hash is string && request.resource.data.hash.matches('^[0-9a-f]{64}$')
+        && request.resource.data.receivedAt is string
+        && request.resource.data.booth == request.auth.token.email;
+      allow delete: if admin();
     }
     match /songs/{id} {
       allow read: if admin() || hasRole('planner') || hasRole('preacher') || hasRole('worship_leader') || hasRole('av') || hasRole('musician');

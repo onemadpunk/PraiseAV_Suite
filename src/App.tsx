@@ -599,6 +599,7 @@ function SuiteWorkspace({ session, onExit }: { session: ChurchSession; onExit: (
 
           {activeModule === 'praise-av' && (
             <PraseAVBridgeWorkspace
+              session={session}
               suiteLink={shareUrl}
               activePlan={activePlan}
               songs={songs}

@@ -7,6 +7,8 @@ import { canAuthorSermon, sermonContributionName, storeSermonMedia } from '../ut
 import { hashServiceText, loadServiceFolderLink, rememberServiceFolderLink, type ServiceFolderLink } from '../utils/serviceFolderTransfer';
 import { toPraiseAVService } from '../utils/praiseavService';
 import { TabletConnection } from './TabletConnection';
+import { publishSermon, watchDelivery } from '../services/deliveries';
+import { boothStatus, boothStatusText, type Delivery, type DeliveryReceipt } from '../utils/deliveries';
 
 interface Props {plans:ServicePlan[];session:ChurchSession|null;onUpdatePlan:(plan:ServicePlan)=>void;initialPlanId?:string;}
 export function SermonWorkspace({plans,session,onUpdatePlan,initialPlanId}:Props) {
@@ -65,11 +67,22 @@ export function SermonWorkspace({plans,session,onUpdatePlan,initialPlanId}:Props
     baseVersion.current=next.updatedAt;dirty.current=false;setDraft(next);setMessage('Sermon draft saved. Send to church when ready.');return next;
   };
   const act=async(work:()=>Promise<unknown>)=>{setBusy(true);setMessage('');try{await work();}catch(error){setMessage(error instanceof Error?error.message:String(error));}finally{setBusy(false);}};
+  const [booth,setBooth]=useState<{delivery:Delivery|null;receipt:DeliveryReceipt|null}>({delivery:null,receipt:null});
+  useEffect(()=>{
+    setBooth({delivery:null,receipt:null});
+    if(!session || !selected)return;
+    return watchDelivery(session,{planId:selected.plan.id,itemId:selected.item.id},setBooth);
+  },[selectedKey,session]);
   const publish=()=>act(async()=>{
     if(!selected)return;
-    const next=await save(),link=await linkedFolder(),fileName=sermonContributionName(next.planId,next.id);
+    const next=await save();
     const compiled=toPraiseAVService({...selected.plan,items:[{...selected.item,title:next.title,stageNotes:next.notes,customSlides:next.slides,sermonMedia:next.media}]},[]);
     const data={format:'praiseav-sermon',version:1,planId:next.planId,itemId:next.id,title:next.title,notes:next.notes,slides:compiled.items[0].slides,media:compiled.media,updatedAt:next.updatedAt};
+    // Signed in: the church cloud carries the sermon to the booth from any device. The shared
+    // folder is still needed for video/music files, and is the only route without a church account.
+    if(session)await publishSermon(session,data);
+    if(session && !next.media.length){setReview(null);setMessage('Sermon sent to the booth. PraiseAV picks it up while it is open; the planner must also send Sunday’s service. Updates never change the live screen until the operator loads them.');return;}
+    const link=await linkedFolder(),fileName=sermonContributionName(next.planId,next.id);
     const text=JSON.stringify(data,null,2),key=`sermon:${selectedKey}`;
     let handle:FileSystemFileHandle;
     try {
@@ -88,7 +101,7 @@ export function SermonWorkspace({plans,session,onUpdatePlan,initialPlanId}:Props
   });
   return <section className="space-y-5 max-w-4xl">
     <h1 className="text-2xl font-bold">My sermon & tablet</h1>
-    <p>Prepare your notes, congregation slides and media here. Publish to the church’s shared Services folder, then use the approved tablet view on Sunday.</p>
+    <p>Prepare your notes, congregation slides and media here, then Send my sermon to church. It reaches the booth through the church cloud from any device; video and music also need the church’s shared Services folder (Chrome or Edge on a computer). Use the approved tablet view on Sunday.</p>
     {!selected?<p role="status">No sermon is assigned to your account yet. Ask the service planner to assign your email to Sunday’s sermon.</p>:<>
       <label className="block">Service / sermon<select className="block w-full rounded border bg-transparent p-2" value={selectedKey} onChange={e=>{if(!dirty.current || confirm('Leave unsaved sermon edits?'))setSelection(e.target.value);}}>{choices.map(c=><option key={c.key} value={c.key}>{c.plan.date} · {c.plan.title} · {c.item.title}</option>)}</select></label>
       {planner&&<div className="flex gap-2"><input aria-label="Assigned preacher email" type="email" className="flex-1 rounded border bg-transparent p-2" placeholder="Assigned preacher’s email" value={assignment} onChange={e=>setAssignment(e.target.value)}/><button disabled={busy} className="rounded border p-2" onClick={()=>void act(async()=>{
@@ -106,6 +119,7 @@ export function SermonWorkspace({plans,session,onUpdatePlan,initialPlanId}:Props
       </fieldset>}
       {review&&<details open className="rounded border p-3"><summary>Previously published sermon — review before replacement</summary><pre className="max-h-64 overflow-auto whitespace-pre-wrap text-xs">{review.text}</pre><button className="rounded border p-2" onClick={async()=>{if(!folder)return;const next={...folder,lastExports:{...folder.lastExports,[`sermon:${selectedKey}`]:review.hash}};await rememberServiceFolderLink(next);setFolder(next);setReview(null);setMessage('Reviewed. Send my sermon again to publish your saved draft instead.');}}>I reviewed it; allow my saved draft to replace this version</button></details>}
     </>}
+    {session&&selected&&<p className="text-sm">Booth: {boothStatusText(boothStatus(booth.delivery,booth.receipt))}</p>}
     {message&&<p role="status" className="rounded border p-3">{message}</p>}
     <TabletConnection churchId={session?.connection.config.projectId}/>
   </section>;
