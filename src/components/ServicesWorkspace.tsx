@@ -38,7 +38,6 @@ import type { ChurchSession } from '../services/churchFirebase';
 import { uploadCloudFile } from '../services/cloudFiles';
 import { cloudFileKind } from '../utils/cloudFiles';
 import { teamNoticeFor } from '../utils/teamNotices';
-import { emailTeam } from '../services/teamEmail';
 
 interface ServicesWorkspaceProps {
   plans: ServicePlan[];
@@ -376,11 +375,11 @@ export const ServicesWorkspace: React.FC<ServicesWorkspaceProps> = ({
               onClick={async () => {
                 const resend = Boolean(activePlan.teamNotice);
                 if (resend && !confirm('The team was told on ' + new Date(activePlan.teamNotice!.sentAt).toLocaleString() + '. Tell them again (for example after changing songs)?')) return;
-                const told = { ...activePlan, teamNotice: teamNoticeFor(session.user.email || '') };
-                onUpdatePlan(told);
-                setShareNotice('Telling the team…');
-                const emailed = await emailTeam(session, told, teamEmails, shareUrl).catch(() => 'Emails could not be sent just now.');
-                setShareNotice('Done. Everyone on the rota sees “You’re on the rota” in the Suite, with the songs, keys and a button to say whether they can serve. ' + emailed);
+                onUpdatePlan({ ...activePlan, teamNotice: teamNoticeFor(session.user.email || '') });
+                // Emails come from the leader's own email (the church's data stays with the church):
+                // their mail app opens with the whole rota in BCC, ready to send.
+                if (teamMailto) window.location.href = teamMailto;
+                setShareNotice('Done. Everyone on the rota sees “You’re on the rota” in the Suite, with the songs, keys and a button to say whether they can serve. ' + (teamMailto ? 'Your email app has opened with the team in BCC: press Send to email them too.' : 'Nobody on this rota has an email address on file, so no email was started.'));
               }}
             >
               {activePlan.teamNotice ? 'Tell the team again' : 'Let the team know'}
