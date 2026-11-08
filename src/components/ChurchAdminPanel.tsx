@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react';
 import { collection, onSnapshot } from 'firebase/firestore';
-import { ChurchRole, ChurchSession, approveChurchAccess, churchInviteLink, removeChurchAccess, updateChurchAccess } from '../services/churchFirebase';
+import { ChurchRole, ChurchSession, approveChurchAccess, boothConnectionCode, churchInviteLink, removeChurchAccess, updateChurchAccess } from '../services/churchFirebase';
 import { churchRules } from '../services/churchRules';
 import { checkChurchRulesHealth, ChurchRulesHealth } from '../services/churchRulesHealth';
 
 const ROLES: ChurchRole[] = ['admin', 'office_staff', 'planner', 'preacher', 'worship_leader', 'av', 'musician', 'people', 'kids', 'finance', 'member', 'family'];
 const ROLE_NAMES: Record<ChurchRole, string> = { admin: 'Administrator', office_staff: 'Office staff', planner: 'Service planner', preacher: 'Preacher', worship_leader: 'Worship leader', av: 'AV operator', musician: 'Musician', people: 'People team', kids: 'Kids team', finance: 'Finance team', member: 'Member', family: 'Family' };
-type Request = { uid: string; email: string; name: string };
+type Request = { uid: string; email: string; name: string; booth?: boolean };
 type Membership = { uid: string; email: string; roles: ChurchRole[] };
 type Profile = { uid: string; displayName?: string; contactNumber?: string; householdName?: string; familyNames?: string };
 
@@ -64,13 +64,29 @@ export function ChurchAdminPanel({ session, onClose }: { session: ChurchSession;
           {rulesHealth !== 'current' && <button type="button" className="px-3 py-2 rounded border" onClick={() => navigator.clipboard.writeText(churchRules(session.connection.ownerEmail)).then(() => setNotice('Updated church rules copied. Paste them into Firestore → Rules and publish, then check again.')).catch(() => setNotice('Could not copy rules. Open the setup guide to generate them again.'))}>Copy updated security rules</button>}
           <button type="button" className="px-3 py-2 rounded border" onClick={() => { setRulesHealth('checking'); void checkChurchRulesHealth(session.db).then(setRulesHealth); }}>Check again</button>
         </div>
+        <div className="rounded-lg border border-emerald-400/60 p-3 text-sm space-y-2">
+          <strong>Set up the booth computer</strong>
+          <ol className="list-decimal pl-5 space-y-1">
+            <li>Copy the booth code below.</li>
+            <li>On the church computer, open PraiseAV → More → Church cloud, paste the code, and choose an email and password for the booth. A church-owned address such as <em>yourchurch.avdesk@gmail.com</em> works well, and the same account can run the church’s Google Drive and YouTube. Open the verification email that arrives and click its link.</li>
+            <li>A request marked <em>Booth computer</em> appears below. Click <em>Approve as booth computer</em>.</li>
+          </ol>
+          <p>The booth login can only read services, songs and sermons, so volunteers at the booth never see people, giving or children’s records. Using a separate login also keeps the administrator’s account off a shared computer.</p>
+          <button type="button" className="px-3 py-2 rounded bg-emerald-600 text-white" onClick={() => navigator.clipboard.writeText(boothConnectionCode(session.connection)).then(() => setNotice('Booth code copied. Paste it into PraiseAV on the church computer.')).catch(() => setNotice('Could not copy. Select the code and copy it: ' + boothConnectionCode(session.connection)))}>Copy booth code</button>
+        </div>
         <h3 className="font-semibold">Waiting for approval</h3>
         {!requests.length && <p className="text-sm">No requests yet.</p>}
         {requests.map((request) => {
           const profile = profiles.find((entry) => entry.uid === request.uid);
           return (
           <div key={request.uid} className="border rounded p-3 space-y-2">
-            <strong>{request.name || request.email}</strong> <span className="text-sm">{request.email}</span>
+            <strong>{request.booth ? 'Booth computer (PraiseAV)' : request.name || request.email}</strong> <span className="text-sm">{request.email}</span>
+            {request.booth && <div className="space-y-1"><p className="text-sm">PraiseAV on the church computer asked to connect. It gets the AV operator role only.</p><button disabled={busy} className="px-3 py-1 rounded bg-emerald-600 text-white disabled:opacity-50" onClick={async () => {
+              setBusy(true);
+              try { await approveChurchAccess(session, request.uid, request.email, ['av']); setNotice('Booth computer approved. PraiseAV will start receiving services in a moment.'); }
+              catch (error) { setNotice(String(error)); }
+              finally { setBusy(false); }
+            }}>Approve as booth computer</button></div>}
             {profile && <p className="text-sm">Their details: {profile.displayName || 'Name not added'} · {profile.householdName || 'No household name'} · {profile.contactNumber || 'No contact number'}{profile.familyNames ? ` · Family: ${profile.familyNames}` : ''}</p>}
             <div className="flex flex-wrap gap-2 text-xs">{ROLES.map((role) => <label key={role} className="px-2 py-1 border rounded"><input type="checkbox" checked={(selected[request.uid] || ['member']).includes(role)} onChange={() => toggle(request.uid, role)} /> {ROLE_NAMES[role]}</label>)}</div>
             <button disabled={busy || !(selected[request.uid] || ['member']).length} className="px-3 py-1 rounded bg-sky-600 text-white disabled:opacity-50" onClick={async () => {

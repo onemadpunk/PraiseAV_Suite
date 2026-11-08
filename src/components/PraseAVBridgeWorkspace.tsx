@@ -1,6 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { ServicePlan, Song } from '../types/church';
 import { toPraiseAVService } from '../utils/praiseavService';
+import { canWrite, type ChurchSession } from '../services/churchFirebase';
+import { publishService, watchDelivery } from '../services/deliveries';
+import { boothStatus, boothStatusText, type Delivery, type DeliveryReceipt } from '../utils/deliveries';
 import {
   loadServiceFolderLink, rememberServiceFolderLink, writeServiceToFolder,
   type ServiceFolderLink,
@@ -28,6 +31,7 @@ export const PRAISEAV_THEME_PRESETS: PraiseAVThemePreset[] = [
 ];
 
 interface Props {
+  session?: ChurchSession | null;
   suiteLink?:string;
   activePlan: ServicePlan | undefined;
   songs: Song[];
@@ -36,8 +40,30 @@ interface Props {
 }
 
 export const PraseAVBridgeWorkspace: React.FC<Props> = ({
-  activePlan, songs, activeThemePreset, onSelectThemePreset, suiteLink,
+  activePlan, songs, activeThemePreset, onSelectThemePreset, suiteLink, session,
 }) => {
+  const canSendToBooth = Boolean(session && canWrite(session, 'plans'));
+  const [booth, setBooth] = useState<{ delivery: Delivery | null; receipt: DeliveryReceipt | null }>({ delivery: null, receipt: null });
+  const [boothBusy, setBoothBusy] = useState(false);
+  const [boothMessage, setBoothMessage] = useState('');
+  useEffect(() => {
+    setBooth({ delivery: null, receipt: null });
+    if (!session || !activePlan || !canSendToBooth) return;
+    return watchDelivery(session, { planId: activePlan.id }, setBooth);
+  }, [session, activePlan?.id, canSendToBooth]);
+  const sendToBooth = async () => {
+    if (!session || !activePlan || boothBusy) return;
+    setBoothBusy(true);
+    setBoothMessage('');
+    try {
+      const delivery = await publishService(session, toPraiseAVService(activePlan, songs, suiteLink));
+      setBoothMessage(delivery.hash === booth.delivery?.hash ? 'Nothing has changed since the last send.' : 'Sent. PraiseAV on the booth computer picks it up while it is open, and the AV desk chooses when to load it.');
+    } catch (error) {
+      setBoothMessage('Could not send to the booth: ' + (error instanceof Error ? error.message : String(error)) + ' If this keeps happening, ask a church administrator to update the church security rules (Church access).');
+    } finally {
+      setBoothBusy(false);
+    }
+  };
   const [folderLink, setFolderLink] = useState<ServiceFolderLink | null>(null);
   const [busy, setBusy] = useState(false);
   const [transferMessage, setTransferMessage] = useState('');
@@ -125,6 +151,13 @@ export const PraseAVBridgeWorkspace: React.FC<Props> = ({
       <li>Assign the preacher in My sermon & tablet. They save notes and slides, add videos/music to the shared folder and use Send my sermon to church. The desktop combines their published contribution with this service and checks every file before marking it Ready.</li>
       <li>Other visiting-speaker presentation placeholders still need their original PowerPoint or PDF added on the desktop.</li>
     </ol>
+    {canSendToBooth && <div className="space-y-2 rounded border border-emerald-500/50 p-4">
+      <h2 className="font-semibold">Send to the booth</h2>
+      <p className="text-sm">Works from any computer, tablet or phone. PraiseAV on the booth computer, signed in to this church, saves it into its Services folder by itself. Video and music files still travel through the shared Services folder.</p>
+      <button type="button" disabled={!activePlan || boothBusy} onClick={sendToBooth} className="px-4 py-2 rounded bg-emerald-600 text-white disabled:opacity-50">{boothBusy ? 'Sending…' : 'Send to the booth'}</button>
+      <p role="status" className="text-sm">{boothStatusText(boothStatus(booth.delivery, booth.receipt))}</p>
+      {boothMessage && <p className="text-sm">{boothMessage}</p>}
+    </div>}
     {canChooseFolder && <div className="space-y-2 rounded border border-sky-500/40 p-4">
       <p className="text-sm">{folderLink ? `Folder remembered in this browser: ${folderLink.directory.name}` : 'Choose the Services folder once; this browser can remember it for later transfers.'}</p>
       <div className="flex flex-wrap gap-2">

@@ -50,6 +50,10 @@ import { SermonWorkspace } from './components/SermonWorkspace';
 import { parseChurchBackup } from './services/backup';
 import {readSermonDrafts,restoreSermonDrafts} from './services/sermonBackup';
 import { doc, onSnapshot } from 'firebase/firestore';
+import { saveRotaReply, subscribeRotaReplies } from './services/rotaReplies';
+import { indexRotaReplies, type RotaReplyDoc, type RotaReplyIndex, type RotaReplyStatus } from './utils/rotaReplies';
+import { emailFingerprint } from './utils/serviceSharing';
+import { pendingTeamNotices } from './utils/teamNotices';
 
 type ActiveModule =
   | 'services'
@@ -102,6 +106,33 @@ function SuiteWorkspace({ session, onExit }: { session: ChurchSession; onExit: (
   const [roomBookings, setRoomBookings, bookingsReady] = useChurchCollection<RoomBooking>(session, 'bookings', [], setDataError);
   const [donations, setDonations, donationsReady] = useChurchCollection<DonationRecord>(session, 'donations', [], setDataError);
   const [showAdmin, setShowAdmin] = useState(false);
+  const [replyDocs, setReplyDocs] = useState<RotaReplyDoc[]>([]);
+  const [replyIndex, setReplyIndex] = useState<RotaReplyIndex>({});
+  useEffect(() => {
+    setReplyDocs([]);
+    if (!session) return;
+    // Churches whose rules predate rota replies get permission-denied here until an
+    // administrator publishes the updated rules; the rest of the Suite keeps working.
+    return subscribeRotaReplies(session, setReplyDocs, (error) => console.warn('Rota replies unavailable:', error.message));
+  }, [session]);
+  useEffect(() => {
+    let active = true;
+    const emails = [...new Set(replyDocs.map((entry) => String(entry.email || '').trim().toLowerCase()).filter(Boolean))];
+    Promise.all(emails.map(async (email) => [email, await emailFingerprint(email)] as const)).then((pairs) => {
+      if (active) setReplyIndex(indexRotaReplies(replyDocs, Object.fromEntries(pairs)));
+    });
+    return () => { active = false; };
+  }, [replyDocs]);
+  const myReplyDoc = session ? replyDocs.find((entry) => entry.uid === session.user.uid) || null : null;
+  // "You're on the rota" notices not yet answered: the number on Band stand.
+  const [myEmailHash, setMyEmailHash] = useState('');
+  useEffect(() => { let live = true; emailFingerprint(session?.user.email || '').then((hash) => { if (live) setMyEmailHash(hash); }); return () => { live = false; }; }, [session?.user.email]);
+  const rotaNotices = pendingTeamNotices(plans, myEmailHash, myReplyDoc?.replies || {}, new Date().toISOString().slice(0, 10)).length;
+  const handleRotaReply = async (planId: string, status: RotaReplyStatus | null) => {
+    if (!session) return;
+    try { await saveRotaReply(session, myReplyDoc, planId, status); }
+    catch (error) { setDataError('Could not save your reply. Ask a church administrator to update the church security rules (Church access → Copy updated security rules). ' + String(error)); }
+  };
   const [showProfile, setShowProfile] = useState(false);
   const moduleAllowed = (module: ActiveModule) => !session
     || module === 'directory'
@@ -330,6 +361,7 @@ function SuiteWorkspace({ session, onExit }: { session: ChurchSession; onExit: (
 
                 <button type="button" onClick={() => setActiveModule('band')} className={`w-full flex items-center px-3 py-2 text-xs font-medium rounded-lg ${activeModule === 'band' ? 'bg-sky-50 dark:bg-sky-950/60 text-sky-700 dark:text-sky-300 font-semibold' : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'}`}>
                   <Headphones className="w-4 h-4 mr-2.5" /> Band stand
+                  {rotaNotices > 0 && <span className="ml-auto rounded-full bg-sky-600 text-white text-[10px] font-bold px-1.5" aria-label={`${rotaNotices} new rota notice${rotaNotices === 1 ? '' : 's'}`}>{rotaNotices}</span>}
                 </button>
                 {moduleAllowed('sermons') && <button type="button" onClick={()=>setActiveModule('sermons')} className="w-full text-left px-3 py-2 text-xs rounded-lg">My sermon & tablet</button>}
                 <button
@@ -508,7 +540,9 @@ function SuiteWorkspace({ session, onExit }: { session: ChurchSession; onExit: (
               onCreatePlan={handleCreatePlan}
               songs={songs}
               members={members}
+              replyIndex={replyIndex}
               shareUrl={shareUrl}
+              session={session}
               onPushItemToLiveAV={(planId, itemIdx, slideIdx = 0) => {
                 setActivePlanId(planId);
                 setPreview({ activeItemIndex: itemIdx, activeSlideIndex: slideIdx });
@@ -530,7 +564,7 @@ function SuiteWorkspace({ session, onExit }: { session: ChurchSession; onExit: (
             />
           )}
 
-          {activeModule === 'band' && <MusicStandWorkspace plans={plans} songs={songs} initialPlanId={activePlanId} userEmail={session?.user.email || ''} churchId={session?.connection.config.projectId} />}
+          {activeModule === 'band' && <MusicStandWorkspace plans={plans} songs={songs} initialPlanId={activePlanId} userEmail={session?.user.email || ''} churchId={session?.connection.config.projectId} myReplies={myReplyDoc?.replies || {}} onReply={handleRotaReply} />}
           {activeModule === 'sermons' && <SermonWorkspace plans={plans} session={session} onUpdatePlan={handleUpdatePlan} initialPlanId={activePlanId}/>}
 
           {activeModule === 'people' && (
@@ -572,6 +606,7 @@ function SuiteWorkspace({ session, onExit }: { session: ChurchSession; onExit: (
 
           {activeModule === 'praise-av' && (
             <PraseAVBridgeWorkspace
+              session={session}
               suiteLink={shareUrl}
               activePlan={activePlan}
               songs={songs}

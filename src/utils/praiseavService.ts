@@ -90,7 +90,8 @@ export function toPraiseAVService(plan: ServicePlan, songs: Song[], suiteLink?:s
       const cues = item.sermonMedia || [];
       const addCues = (after: number) => cues.filter(cue => cue.afterSlide === after).forEach(cue => {
         media.push({id:cue.id,name:cue.name,fileName:cue.fileName,sha256:cue.sha256,bytes:cue.bytes,kind:cue.kind});
-        slides.push({type:'media',id:cue.id,kind:cue.kind,name:cue.name});
+        // A PowerPoint or PDF: PraiseAV turns its pages into picture slides here.
+        slides.push(cue.kind==='presentation' ? {type:'presentation',id:cue.id,name:cue.name} : {type:'media',id:cue.id,kind:cue.kind,name:cue.name});
       });
       addCues(0);
       (item.customSlides || []).forEach((slide,index) => { slides.push({type:'text',text:slide.bodyText}); addCues(index+1); });
@@ -106,6 +107,12 @@ export function toPraiseAVService(plan: ServicePlan, songs: Song[], suiteLink?:s
     if (item.type === 'scripture') {
       return noticeSlide(item, [item.scriptureRef || item.title, item.scriptureText || ''].filter(Boolean).join('\n\n'));
     }
+    if (item.type === 'presentation' && item.presentationFile) {
+      const file = item.presentationFile;
+      media.push({ id: file.id, name: file.name, fileName: file.fileName, sha256: file.sha256, bytes: file.bytes, kind: 'presentation' });
+      // PraiseAV makes the slides from the file when the service is opened.
+      return { uid: item.id, type: 'presentation', name: item.title, slides: [], suiteFile: file.id, suiteNotes: item.stageNotes };
+    }
     if (item.type === 'presentation') {
       return noticeSlide(item, `${item.title}\n\nAdd the presentation file in PraiseAV before the service.`);
     }
@@ -116,6 +123,6 @@ export function toPraiseAVService(plan: ServicePlan, songs: Song[], suiteLink?:s
     name: plan.title, date: plan.date,
     ...(suiteLink && {suiteLink}),
     startTime: plan.serviceTimes[0] || '', endTime: '', notices: '',
-    items, songs: copies, media,
+    items, songs: copies, media: [...new Map(media.map((entry) => [entry.id, entry])).values()],
   };
 }

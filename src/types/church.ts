@@ -37,11 +37,17 @@ export interface ServiceItem {
   lightingCue: string;
   customSlides?: PraiseSlide[];
   sermonMedia?: SermonMedia[];
+  // A PowerPoint or PDF sent through the church cloud; PraiseAV makes slides from it.
+  presentationFile?: CloudMedia;
 }
 
-export interface SermonMedia {
-  id: string; name: string; kind: 'video' | 'audio'; fileName: string;
-  sha256: string; bytes: number; afterSlide: number;
+export interface CloudMedia {
+  id: string; name: string; kind: 'video' | 'audio' | 'presentation'; fileName: string;
+  sha256: string; bytes: number;
+  via?: 'cloud' | 'folder'; // 'cloud': sent through the church cloud (any device)
+}
+export interface SermonMedia extends CloudMedia {
+  afterSlide: number;
 }
 export interface SermonDraft {
   id: string; planId: string; title: string; notes: string;
@@ -74,6 +80,8 @@ export interface ServicePlan {
   items: ServiceItem[];
   rota: RotaAssignment[];
   sermonAssignments?: Record<string, string>;
+  // Set when the worship leader presses "Let the team know" (utils/teamNotices.ts).
+  teamNotice?: { sentAt: string; sentBy: string };
 }
 
 export interface Song {

@@ -31,8 +31,13 @@ import {
 } from '../utils/musicAndAv';
 import { toPraiseAVService } from '../utils/praiseavService';
 import { rotaConflicts } from '../utils/rotaConflicts';
+import { effectiveRotaStatus, replyFor, type RotaReplyIndex } from '../utils/rotaReplies';
 import { arrangeChordPro } from '../utils/songArrangement';
 import { assignedEmailAddresses, emailFingerprint, serviceTeamMessage } from '../utils/serviceSharing';
+import type { ChurchSession } from '../services/churchFirebase';
+import { uploadCloudFile } from '../services/cloudFiles';
+import { cloudFileKind } from '../utils/cloudFiles';
+import { teamNoticeFor } from '../utils/teamNotices';
 
 interface ServicesWorkspaceProps {
   plans: ServicePlan[];
@@ -42,7 +47,9 @@ interface ServicesWorkspaceProps {
   onCreatePlan: (newPlan: ServicePlan) => void;
   songs: Song[];
   members: Member[];
+  replyIndex?: RotaReplyIndex;
   shareUrl?: string;
+  session?: ChurchSession | null;
   onPushItemToLiveAV: (planId: string, itemIndex: number, slideIndex?: number) => void;
   onOpenPraiseAVConsole: () => void;
 }
@@ -55,7 +62,9 @@ export const ServicesWorkspace: React.FC<ServicesWorkspaceProps> = ({
   onCreatePlan,
   songs,
   members,
+  replyIndex = {},
   shareUrl,
+  session = null,
   onPushItemToLiveAV,
   onOpenPraiseAVConsole,
 }) => {
@@ -172,6 +181,20 @@ export const ServicesWorkspace: React.FC<ServicesWorkspaceProps> = ({
     }
   };
 
+  // A PowerPoint or PDF for a presentation item, sent through the church cloud (works on an iPad).
+  const [fileNotice, setFileNotice] = useState('');
+  const handlePresentationFile = async (itemId: string, file: File) => {
+    if (!session) { setFileNotice('Sign in to the church’s Suite to send the file to the booth.'); return; }
+    if (cloudFileKind(file.name) !== 'presentation') { setFileNotice('Choose a PowerPoint (.pptx or .ppt), .odp or PDF file.'); return; }
+    try {
+      const entry = await uploadCloudFile(session, activePlan.id, file, (done, total) => setFileNotice(`Sending ${file.name}: ${Math.round((done / total) * 100)}%`));
+      onUpdatePlan({ ...activePlan, items: activePlan.items.map((item) => item.id === itemId ? { ...item, externalMediaName: file.name, presentationFile: entry } : item) });
+      setFileNotice(`${file.name} is in the church cloud. Send the service to the booth and PraiseAV makes the slides from it.`);
+    } catch (error) {
+      setFileNotice(error instanceof Error ? error.message : String(error));
+    }
+  };
+
   const handleKeyChangeOnItem = (itemId: string, nextKey: string) => {
     const nextItems = activePlan.items.map((item) =>
       item.id === itemId ? { ...item, musicalKey: nextKey } : item
@@ -236,7 +259,7 @@ export const ServicesWorkspace: React.FC<ServicesWorkspaceProps> = ({
     const order: Array<'Confirmed' | 'Pending' | 'Declined'> = ['Confirmed', 'Pending', 'Declined'];
     const nextRota = activePlan.rota.map((r) => {
       if (r.id !== rotaId) return r;
-      const nextStatus = order[(order.indexOf(r.status) + 1) % order.length];
+      const nextStatus = order[(order.indexOf(effectiveRotaStatus(activePlan, r, replyIndex)) + 1) % order.length];
       return { ...r, status: nextStatus };
     });
     onUpdatePlan({ ...activePlan, rota: nextRota });
@@ -344,6 +367,24 @@ export const ServicesWorkspace: React.FC<ServicesWorkspaceProps> = ({
             <Printer className="w-3.5 h-3.5" />
             Print sheet
           </button>
+          {session && activePlan.rota.length > 0 && (
+            <button
+              type="button"
+              className="px-3 py-2 text-xs font-semibold rounded-lg bg-sky-600 text-white"
+              title="Everyone on this service's rota sees it in the Suite and can say whether they can serve."
+              onClick={async () => {
+                const resend = Boolean(activePlan.teamNotice);
+                if (resend && !confirm('The team was told on ' + new Date(activePlan.teamNotice!.sentAt).toLocaleString() + '. Tell them again (for example after changing songs)?')) return;
+                onUpdatePlan({ ...activePlan, teamNotice: teamNoticeFor(session.user.email || '') });
+                // Emails come from the leader's own email (the church's data stays with the church):
+                // their mail app opens with the whole rota in BCC, ready to send.
+                if (teamMailto) window.location.href = teamMailto;
+                setShareNotice('Done. Everyone on the rota sees “You’re on the rota” in the Suite, with the songs, keys and a button to say whether they can serve. ' + (teamMailto ? 'Your email app has opened with the team in BCC: press Send to email them too.' : 'Nobody on this rota has an email address on file, so no email was started.'));
+              }}
+            >
+              {activePlan.teamNotice ? 'Tell the team again' : 'Let the team know'}
+            </button>
+          )}
           {shareUrl && <>
             <button type="button" className="px-3 py-2 text-xs font-medium border border-slate-300 dark:border-slate-700 rounded-lg" onClick={async () => {
               try { await navigator.clipboard.writeText(teamMessage); setShareNotice('Service order and team link copied. Send it to your rota using your usual messaging app.'); }
@@ -374,6 +415,7 @@ export const ServicesWorkspace: React.FC<ServicesWorkspaceProps> = ({
         </div>
       </div>
       {shareNotice && <p role="status" className="text-sm rounded-lg border border-sky-400/50 p-3">{shareNotice}</p>}
+      {fileNotice && <p role="status" className="text-sm rounded-lg border border-sky-400/50 p-3">{fileNotice}</p>}
 
       {/* Optional New Service Plan Form */}
       {showNewPlanForm && (
@@ -779,6 +821,21 @@ export const ServicesWorkspace: React.FC<ServicesWorkspaceProps> = ({
                                 ))}
                               </select>
                             </div>
+                          ) : item.type === 'presentation' ? (
+                            <div className="text-[11px] text-slate-500 dark:text-slate-400" onClick={(e) => e.stopPropagation()}>
+                              <div>{item.presentationFile ? `File: ${item.presentationFile.name}` : 'No file yet'}</div>
+                              {session && (
+                                <label className="cursor-pointer text-indigo-600 dark:text-indigo-400 underline">
+                                  {item.presentationFile ? 'Replace file' : 'Add PowerPoint or PDF'}
+                                  <input
+                                    type="file"
+                                    className="sr-only"
+                                    accept=".pptx,.ppt,.odp,.pdf"
+                                    onChange={(e) => { const file = e.target.files?.[0]; e.target.value = ''; if (file) void handlePresentationFile(item.id, file); }}
+                                  />
+                                </label>
+                              )}
+                            </div>
                           ) : (
                             <span className="text-[11px] font-mono tabular-nums text-slate-500 dark:text-slate-400">
                               {itemSlidesCount} {itemSlidesCount === 1 ? 'slide' : 'slides'}
@@ -933,6 +990,8 @@ export const ServicesWorkspace: React.FC<ServicesWorkspaceProps> = ({
               {activePlan.rota.map((r) => {
                 const memberObj = members.find((m) => m.id === r.memberId);
                 const isBlockedOut = memberObj?.blockoutDates.includes(activePlan.date);
+                const reply = replyFor(activePlan, r, replyIndex);
+                const shown = effectiveRotaStatus(activePlan, r, replyIndex);
 
                 return (
                   <div
@@ -947,6 +1006,11 @@ export const ServicesWorkspace: React.FC<ServicesWorkspaceProps> = ({
                           · {r.role} · {r.department}
                         </span>
                       </div>
+                      {reply && (
+                        <div className={`text-[11px] font-medium mt-0.5 ${reply.status === 'Confirmed' ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
+                          {reply.status === 'Confirmed' ? 'Replied: can serve' : 'Replied: can’t make it'}{shown !== reply.status ? ' (you set ' + r.status + ')' : ''}
+                        </div>
+                      )}
                       {isBlockedOut && (
                         <div className="text-[11px] text-amber-600 dark:text-amber-400 font-medium mt-0.5">
                           Warning: Member has a registered blockout date on {activePlan.date}
@@ -958,14 +1022,14 @@ export const ServicesWorkspace: React.FC<ServicesWorkspaceProps> = ({
                         type="button"
                         onClick={() => handleToggleRotaStatus(r.id)}
                         className={`text-xs font-medium underline-offset-4 hover:underline ${
-                          r.status === 'Confirmed'
+                          shown === 'Confirmed'
                             ? 'text-emerald-600 dark:text-emerald-400'
-                            : r.status === 'Pending'
+                            : shown === 'Pending'
                             ? 'text-amber-600 dark:text-amber-400'
                             : 'text-red-600 dark:text-red-400'
                         }`}
                       >
-                        Status: {r.status}
+                        Status: {shown}
                       </button>
                       <button
                         type="button"

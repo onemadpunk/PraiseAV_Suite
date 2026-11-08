@@ -3,15 +3,24 @@ import type { ServicePlan, Song } from '../types/church';
 import { ALL_KEYS, parseChordProForSheet, transposeChordPro } from '../utils/musicAndAv';
 import { arrangeChordPro } from '../utils/songArrangement';
 import { assignmentsForEmailHash, emailFingerprint } from '../utils/serviceSharing';
+import type { RotaReplyStatus } from '../utils/rotaReplies';
+import { pendingTeamNotices } from '../utils/teamNotices';
 
 import { TabletConnection } from './TabletConnection';
-interface Props { plans: ServicePlan[]; songs: Song[]; initialPlanId?: string; userEmail?: string; churchId?:string; }
+interface Props { plans: ServicePlan[]; songs: Song[]; initialPlanId?: string; userEmail?: string; churchId?:string; myReplies?: Record<string, RotaReplyStatus>; onReply?: (planId: string, status: RotaReplyStatus | null) => Promise<void> | void; }
 
 const escapeHtml = (value: string) => value.replace(/[&<>"']/g, (char) =>
   ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char] || char
 );
 
-export function MusicStandWorkspace({ plans, songs, initialPlanId, userEmail = '', churchId }: Props) {
+export function MusicStandWorkspace({ plans, songs, initialPlanId, userEmail = '', churchId, myReplies = {}, onReply }: Props) {
+  const today = new Date().toISOString().slice(0, 10);
+  const [replying, setReplying] = useState('');
+  const reply = async (planId: string, status: RotaReplyStatus | null) => {
+    if (!onReply) return;
+    setReplying(planId);
+    try { await onReply(planId, status); } finally { setReplying(''); }
+  };
   const [planId, setPlanId] = useState(initialPlanId || plans[0]?.id || '');
   const [songIndex, setSongIndex] = useState(0);
   const [selectedKey, setSelectedKey] = useState('');
@@ -22,6 +31,7 @@ export function MusicStandWorkspace({ plans, songs, initialPlanId, userEmail = '
   const plan = plans.find((entry) => entry.id === planId) || plans[0];
   const mySchedule = plans.map((entry) => ({ plan: entry, assignments: assignmentsForEmailHash(entry, userEmailHash) }))
     .filter((entry) => entry.assignments.length).sort((a, b) => a.plan.date.localeCompare(b.plan.date));
+  const notices = pendingTeamNotices(plans, userEmailHash, myReplies, today);
   const entries = (plan?.items || []).flatMap((item) => {
     const song = songs.find((candidate) => candidate.id === item.songId);
     return song ? [{ item, song }] : [];
@@ -65,11 +75,35 @@ export function MusicStandWorkspace({ plans, songs, initialPlanId, userEmail = '
       <strong>Follow PraiseAV live at church</strong>
       <p>On the church Wi-Fi, ask the AV operator to turn on Remote in PraiseAV Windows. Scan its QR code on this tablet and ask to be approved as a read-only Band stand. That local view follows the live song and slide; your personal capo choice does not change the projector.</p>
     </div>
+    {notices.map(({ plan: told, roles }) => <div key={told.id} role="status" className="rounded-xl border-2 border-sky-500 bg-sky-50 dark:bg-sky-950/40 p-4 space-y-2">
+      <strong className="block">You’re on the rota: {told.title}, {told.date}</strong>
+      <span className="block text-sm">{roles.join(', ')}. The songs and keys are ready to look over below.</span>
+      <div className="flex flex-wrap gap-2">
+        <button type="button" onClick={() => setPlanId(told.id)} className="px-3 py-2 rounded text-sm border">Look at the songs</button>
+        {onReply && <>
+          <button type="button" disabled={replying === told.id} onClick={() => reply(told.id, 'Confirmed')} className="px-3 py-2 rounded text-sm bg-emerald-600 text-white">I can serve</button>
+          <button type="button" disabled={replying === told.id} onClick={() => reply(told.id, 'Declined')} className="px-3 py-2 rounded text-sm border">Can’t make it</button>
+        </>}
+      </div>
+    </div>)}
     {userEmail && <div className="rounded-xl border border-sky-400/50 p-4 space-y-2">
       <h2 className="font-semibold">My schedule</h2>
-      {mySchedule.length ? mySchedule.map(({ plan: scheduled, assignments }) => <button key={scheduled.id} type="button" onClick={() => setPlanId(scheduled.id)} className="block w-full text-left rounded-lg border border-slate-300 dark:border-slate-700 p-3">
-        <strong>{scheduled.date} · {scheduled.title}</strong><span className="block text-sm">{assignments.map((entry) => `${entry.role} — ${entry.status}`).join(', ')}</span>
-      </button>) : <p className="text-sm">No rota assignments match {userEmail}. Ask your worship leader to assign your member record using this email address.</p>}
+      {mySchedule.length ? mySchedule.map(({ plan: scheduled, assignments }) => {
+        const mine = myReplies[scheduled.id];
+        const upcoming = scheduled.date >= today;
+        return <div key={scheduled.id} className={'rounded-lg border p-3 space-y-2 ' + (scheduled.id === plan?.id ? 'border-sky-500' : 'border-slate-300 dark:border-slate-700')}>
+          <button type="button" onClick={() => setPlanId(scheduled.id)} className="block w-full text-left">
+            <strong>{scheduled.date} · {scheduled.title}</strong>
+            <span className="block text-sm">{assignments.map((entry) => entry.role).join(', ')}</span>
+            <span className="block text-sm">{mine === 'Confirmed' ? 'You said you can serve.' : mine === 'Declined' ? 'You said you can’t make it.' : upcoming ? 'Please let your worship leader know if you can serve.' : ''}</span>
+          </button>
+          {onReply && upcoming && <div className="flex flex-wrap gap-2" role="group" aria-label={'Reply for ' + scheduled.title}>
+            <button type="button" disabled={replying === scheduled.id} aria-pressed={mine === 'Confirmed'} onClick={() => reply(scheduled.id, 'Confirmed')} className={'px-3 py-2 rounded text-sm ' + (mine === 'Confirmed' ? 'bg-emerald-600 text-white' : 'border')}>I can serve</button>
+            <button type="button" disabled={replying === scheduled.id} aria-pressed={mine === 'Declined'} onClick={() => reply(scheduled.id, 'Declined')} className={'px-3 py-2 rounded text-sm ' + (mine === 'Declined' ? 'bg-red-600 text-white' : 'border')}>Can’t make it</button>
+            {mine && <button type="button" disabled={replying === scheduled.id} onClick={() => reply(scheduled.id, null)} className="px-3 py-2 rounded text-sm underline">Undo my reply</button>}
+          </div>}
+        </div>;
+      }) : <p className="text-sm">No rota assignments match {userEmail}. Ask your worship leader to assign your member record using this email address.</p>}
     </div>}
     <div className="suite-page-header flex flex-wrap items-center justify-between gap-2">
       <div><div className="suite-eyebrow">Worship team / Charts</div><h1 className="text-xl font-bold">Band stand</h1><p className="text-sm text-slate-600 dark:text-slate-300">Read-only charts for this service. Your key and capo choices affect this screen only.</p></div>
