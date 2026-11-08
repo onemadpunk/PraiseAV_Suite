@@ -50,6 +50,9 @@ import { SermonWorkspace } from './components/SermonWorkspace';
 import { parseChurchBackup } from './services/backup';
 import {readSermonDrafts,restoreSermonDrafts} from './services/sermonBackup';
 import { doc, onSnapshot } from 'firebase/firestore';
+import { saveRotaReply, subscribeRotaReplies } from './services/rotaReplies';
+import { indexRotaReplies, type RotaReplyDoc, type RotaReplyIndex, type RotaReplyStatus } from './utils/rotaReplies';
+import { emailFingerprint } from './utils/serviceSharing';
 
 type ActiveModule =
   | 'services'
@@ -102,6 +105,29 @@ function SuiteWorkspace({ session, onExit }: { session: ChurchSession; onExit: (
   const [roomBookings, setRoomBookings, bookingsReady] = useChurchCollection<RoomBooking>(session, 'bookings', [], setDataError);
   const [donations, setDonations, donationsReady] = useChurchCollection<DonationRecord>(session, 'donations', [], setDataError);
   const [showAdmin, setShowAdmin] = useState(false);
+  const [replyDocs, setReplyDocs] = useState<RotaReplyDoc[]>([]);
+  const [replyIndex, setReplyIndex] = useState<RotaReplyIndex>({});
+  useEffect(() => {
+    setReplyDocs([]);
+    if (!session) return;
+    // Churches whose rules predate rota replies get permission-denied here until an
+    // administrator publishes the updated rules; the rest of the Suite keeps working.
+    return subscribeRotaReplies(session, setReplyDocs, (error) => console.warn('Rota replies unavailable:', error.message));
+  }, [session]);
+  useEffect(() => {
+    let active = true;
+    const emails = [...new Set(replyDocs.map((entry) => String(entry.email || '').trim().toLowerCase()).filter(Boolean))];
+    Promise.all(emails.map(async (email) => [email, await emailFingerprint(email)] as const)).then((pairs) => {
+      if (active) setReplyIndex(indexRotaReplies(replyDocs, Object.fromEntries(pairs)));
+    });
+    return () => { active = false; };
+  }, [replyDocs]);
+  const myReplyDoc = session ? replyDocs.find((entry) => entry.uid === session.user.uid) || null : null;
+  const handleRotaReply = async (planId: string, status: RotaReplyStatus | null) => {
+    if (!session) return;
+    try { await saveRotaReply(session, myReplyDoc, planId, status); }
+    catch (error) { setDataError('Could not save your reply. Ask a church administrator to update the church security rules (Church access → Copy updated security rules). ' + String(error)); }
+  };
   const [showProfile, setShowProfile] = useState(false);
   const moduleAllowed = (module: ActiveModule) => !session
     || module === 'directory'
@@ -508,6 +534,7 @@ function SuiteWorkspace({ session, onExit }: { session: ChurchSession; onExit: (
               onCreatePlan={handleCreatePlan}
               songs={songs}
               members={members}
+              replyIndex={replyIndex}
               shareUrl={shareUrl}
               onPushItemToLiveAV={(planId, itemIdx, slideIdx = 0) => {
                 setActivePlanId(planId);
@@ -530,7 +557,7 @@ function SuiteWorkspace({ session, onExit }: { session: ChurchSession; onExit: (
             />
           )}
 
-          {activeModule === 'band' && <MusicStandWorkspace plans={plans} songs={songs} initialPlanId={activePlanId} userEmail={session?.user.email || ''} churchId={session?.connection.config.projectId} />}
+          {activeModule === 'band' && <MusicStandWorkspace plans={plans} songs={songs} initialPlanId={activePlanId} userEmail={session?.user.email || ''} churchId={session?.connection.config.projectId} myReplies={myReplyDoc?.replies || {}} onReply={handleRotaReply} />}
           {activeModule === 'sermons' && <SermonWorkspace plans={plans} session={session} onUpdatePlan={handleUpdatePlan} initialPlanId={activePlanId}/>}
 
           {activeModule === 'people' && (

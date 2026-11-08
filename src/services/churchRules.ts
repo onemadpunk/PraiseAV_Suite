@@ -1,7 +1,7 @@
 // Each church installs these rules in its own Firebase project. A user owning
 // the Google account named here can administer the church from a fresh project;
 // every other person must be approved by an administrator in the Suite.
-export const CHURCH_RULES_VERSION = 'v2';
+export const CHURCH_RULES_VERSION = 'v3';
 
 export function churchRules(ownerEmail: string, includeDirectory = false): string {
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(ownerEmail)) throw new Error('Enter a valid owner email first.');
@@ -139,6 +139,20 @@ service cloud.firestore {
       allow read: if admin() || hasRole('planner') || hasRole('preacher') || hasRole('worship_leader') || hasRole('office_staff') || hasRole('av') || hasRole('musician');
       allow create, update: if (admin() || hasRole('planner') || hasRole('worship_leader')) && validRecord(id);
       allow delete: if admin() || hasRole('planner') || hasRole('worship_leader');
+    }
+    // Each volunteer's own replies to the rota (planId → Confirmed or Declined).
+    // Only that person can write them; planners and administrators read them all.
+    match /rotaReplies/{uid} {
+      allow read: if admin() || hasRole('planner') || hasRole('worship_leader') || (approved() && request.auth.uid == uid);
+      allow create, update: if approved() && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly(['uid', 'email', 'replies', 'updatedAt'])
+        && request.resource.data.keys().hasAll(['uid', 'email', 'replies', 'updatedAt'])
+        && request.resource.data.uid == uid
+        && request.resource.data.email == request.auth.token.email
+        && request.resource.data.replies is map
+        && request.resource.data.replies.size() <= 200
+        && request.resource.data.updatedAt is string;
+      allow delete: if admin() || (approved() && request.auth.uid == uid);
     }
     match /songs/{id} {
       allow read: if admin() || hasRole('planner') || hasRole('preacher') || hasRole('worship_leader') || hasRole('av') || hasRole('musician');

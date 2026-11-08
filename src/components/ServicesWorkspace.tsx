@@ -31,6 +31,7 @@ import {
 } from '../utils/musicAndAv';
 import { toPraiseAVService } from '../utils/praiseavService';
 import { rotaConflicts } from '../utils/rotaConflicts';
+import { effectiveRotaStatus, replyFor, type RotaReplyIndex } from '../utils/rotaReplies';
 import { arrangeChordPro } from '../utils/songArrangement';
 import { assignedEmailAddresses, emailFingerprint, serviceTeamMessage } from '../utils/serviceSharing';
 
@@ -42,6 +43,7 @@ interface ServicesWorkspaceProps {
   onCreatePlan: (newPlan: ServicePlan) => void;
   songs: Song[];
   members: Member[];
+  replyIndex?: RotaReplyIndex;
   shareUrl?: string;
   onPushItemToLiveAV: (planId: string, itemIndex: number, slideIndex?: number) => void;
   onOpenPraiseAVConsole: () => void;
@@ -55,6 +57,7 @@ export const ServicesWorkspace: React.FC<ServicesWorkspaceProps> = ({
   onCreatePlan,
   songs,
   members,
+  replyIndex = {},
   shareUrl,
   onPushItemToLiveAV,
   onOpenPraiseAVConsole,
@@ -236,7 +239,7 @@ export const ServicesWorkspace: React.FC<ServicesWorkspaceProps> = ({
     const order: Array<'Confirmed' | 'Pending' | 'Declined'> = ['Confirmed', 'Pending', 'Declined'];
     const nextRota = activePlan.rota.map((r) => {
       if (r.id !== rotaId) return r;
-      const nextStatus = order[(order.indexOf(r.status) + 1) % order.length];
+      const nextStatus = order[(order.indexOf(effectiveRotaStatus(activePlan, r, replyIndex)) + 1) % order.length];
       return { ...r, status: nextStatus };
     });
     onUpdatePlan({ ...activePlan, rota: nextRota });
@@ -933,6 +936,8 @@ export const ServicesWorkspace: React.FC<ServicesWorkspaceProps> = ({
               {activePlan.rota.map((r) => {
                 const memberObj = members.find((m) => m.id === r.memberId);
                 const isBlockedOut = memberObj?.blockoutDates.includes(activePlan.date);
+                const reply = replyFor(activePlan, r, replyIndex);
+                const shown = effectiveRotaStatus(activePlan, r, replyIndex);
 
                 return (
                   <div
@@ -947,6 +952,11 @@ export const ServicesWorkspace: React.FC<ServicesWorkspaceProps> = ({
                           · {r.role} · {r.department}
                         </span>
                       </div>
+                      {reply && (
+                        <div className={`text-[11px] font-medium mt-0.5 ${reply.status === 'Confirmed' ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
+                          {reply.status === 'Confirmed' ? 'Replied: can serve' : 'Replied: can’t make it'}{shown !== reply.status ? ' (you set ' + r.status + ')' : ''}
+                        </div>
+                      )}
                       {isBlockedOut && (
                         <div className="text-[11px] text-amber-600 dark:text-amber-400 font-medium mt-0.5">
                           Warning: Member has a registered blockout date on {activePlan.date}
@@ -958,14 +968,14 @@ export const ServicesWorkspace: React.FC<ServicesWorkspaceProps> = ({
                         type="button"
                         onClick={() => handleToggleRotaStatus(r.id)}
                         className={`text-xs font-medium underline-offset-4 hover:underline ${
-                          r.status === 'Confirmed'
+                          shown === 'Confirmed'
                             ? 'text-emerald-600 dark:text-emerald-400'
-                            : r.status === 'Pending'
+                            : shown === 'Pending'
                             ? 'text-amber-600 dark:text-amber-400'
                             : 'text-red-600 dark:text-red-400'
                         }`}
                       >
-                        Status: {r.status}
+                        Status: {shown}
                       </button>
                       <button
                         type="button"
