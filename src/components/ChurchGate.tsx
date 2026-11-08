@@ -313,6 +313,7 @@ export function ChurchGate({ onReady }: { onReady: (session: ChurchSession) => v
                 <li>In {projectBase ? <a className="underline text-sky-600" href={`${projectBase}/authentication/settings`} target="_blank" rel="noreferrer">Authentication → Settings ↗</a> : 'Authentication → Settings'}, add <code>{siteDomain}</code> under Authorised domains. Enter only the domain, without <code>https://</code> or a path.</li>
                 <li>{projectBase ? <a className="underline text-sky-600" href={`${projectBase}/firestore`} target="_blank" rel="noreferrer">Create Cloud Firestore ↗</a> : 'Create Cloud Firestore'} using Standard edition, database ID <code>(default)</code>, a location near your church, and Production mode. Do not add real records yet.</li>
                 <li>Copy the security rules generated below into Firestore → Rules and publish them. Then connect and sign in.</li>
+                <li>After signing in, open Church access → <strong>Set up the booth computer</strong>. Paste its code into PraiseAV on the church computer, and services sent from the Suite reach the booth by themselves.</li>
               </ol>
               <p className="text-xs">The project belongs to your church. Only the administrator needs Firebase Console; members do not.</p>
             </section>

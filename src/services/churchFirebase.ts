@@ -92,6 +92,13 @@ export function churchInviteLink(connection: ChurchConnection): string {
   return url.toString();
 }
 
+/** The code pasted into PraiseAV Windows to connect the booth computer: the invite link, marked as a booth. */
+export function boothConnectionCode(connection: ChurchConnection): string {
+  const url = new URL(churchInviteLink(connection));
+  url.searchParams.set('booth', '1');
+  return url.toString();
+}
+
 export function churchApp(connection: ChurchConnection): FirebaseApp {
   const name = `church-${connection.config.projectId}`;
   return getApps().some((app) => app.name === name) ? getApp(name) : initializeApp(connection.config, name);
