@@ -4,6 +4,8 @@ import type { ChurchSession } from '../services/churchFirebase';
 import { canWrite } from '../services/churchFirebase';
 import type { ServicePlan, SermonDraft } from '../types/church';
 import { canAuthorSermon, sermonContributionName, storeSermonMedia } from '../utils/sermonWorkflow';
+import { CLOUD_FILE_ACCEPT, cloudFileKind, cloudFileProblem } from '../utils/cloudFiles';
+import { uploadCloudFile } from '../services/cloudFiles';
 import { hashServiceText, loadServiceFolderLink, rememberServiceFolderLink, type ServiceFolderLink } from '../utils/serviceFolderTransfer';
 import { toPraiseAVService } from '../utils/praiseavService';
 import { TabletConnection } from './TabletConnection';
@@ -66,6 +68,19 @@ export function SermonWorkspace({plans,session,onUpdatePlan,initialPlanId}:Props
     });
     baseVersion.current=next.updatedAt;dirty.current=false;setDraft(next);setMessage('Sermon draft saved. Send to church when ready.');return next;
   };
+  // From any device through the church cloud when signed in and small enough; otherwise the
+  // shared Services folder (Chrome or Edge on a computer), which only takes video and music.
+  const addMedia=(file:File)=>act(async()=>{
+    if(!draft || !selected)return;
+    if(session && !cloudFileProblem(file.name,file.size)){
+      const entry=await uploadCloudFile(session,selected.plan.id,file,(done,total)=>setMessage(`Sending ${file.name}: ${Math.round(done/total*100)}%`));
+      edit({media:[...draft.media,{...entry,afterSlide:0}]});
+      setMessage(`${file.name} is in the church cloud. Choose where it goes, then send your sermon.`);return;
+    }
+    if(cloudFileKind(file.name)==='presentation')throw new Error(session?cloudFileProblem(file.name,file.size):'Sign in to the church’s Suite to send a PowerPoint or PDF.');
+    const link=await linkedFolder();const media=await storeSermonMedia(link.directory,file);
+    edit({media:[...draft.media,{...media,via:'folder'}]});setMessage('Media copied and verified in the shared folder. Save/send the sermon when ready.');
+  });
   const act=async(work:()=>Promise<unknown>)=>{setBusy(true);setMessage('');try{await work();}catch(error){setMessage(error instanceof Error?error.message:String(error));}finally{setBusy(false);}};
   const [booth,setBooth]=useState<{delivery:Delivery|null;receipt:DeliveryReceipt|null}>({delivery:null,receipt:null});
   useEffect(()=>{
@@ -81,7 +96,7 @@ export function SermonWorkspace({plans,session,onUpdatePlan,initialPlanId}:Props
     // Signed in: the church cloud carries the sermon to the booth from any device. The shared
     // folder is still needed for video/music files, and is the only route without a church account.
     if(session)await publishSermon(session,data);
-    if(session && !next.media.length){setReview(null);setMessage('Sermon sent to the booth. PraiseAV picks it up while it is open; the planner must also send Sunday’s service. Updates never change the live screen until the operator loads them.');return;}
+    if(session && next.media.every(cue=>cue.via==='cloud')){setReview(null);setMessage('Sermon sent to the booth. PraiseAV picks it up while it is open; the planner must also send Sunday’s service. Updates never change the live screen until the operator loads them.');return;}
     const link=await linkedFolder(),fileName=sermonContributionName(next.planId,next.id);
     const text=JSON.stringify(data,null,2),key=`sermon:${selectedKey}`;
     let handle:FileSystemFileHandle;
@@ -101,7 +116,7 @@ export function SermonWorkspace({plans,session,onUpdatePlan,initialPlanId}:Props
   });
   return <section className="space-y-5 max-w-4xl">
     <h1 className="text-2xl font-bold">My sermon & tablet</h1>
-    <p>Prepare your notes, congregation slides and media here, then Send my sermon to church. It reaches the booth through the church cloud from any device; video and music also need the church’s shared Services folder (Chrome or Edge on a computer). Use the approved tablet view on Sunday.</p>
+    <p>Prepare your notes, congregation slides, PowerPoint or PDF, and media here, then Send my sermon to church. It reaches the booth through the church cloud from any device, including an iPad. Use the approved tablet view on Sunday.</p>
     {!selected?<p role="status">No sermon is assigned to your account yet. Ask the service planner to assign your email to Sunday’s sermon.</p>:<>
       <label className="block">Service / sermon<select className="block w-full rounded border bg-transparent p-2" value={selectedKey} onChange={e=>{if(!dirty.current || confirm('Leave unsaved sermon edits?'))setSelection(e.target.value);}}>{choices.map(c=><option key={c.key} value={c.key}>{c.plan.date} · {c.plan.title} · {c.item.title}</option>)}</select></label>
       {planner&&<div className="flex gap-2"><input aria-label="Assigned preacher email" type="email" className="flex-1 rounded border bg-transparent p-2" placeholder="Assigned preacher’s email" value={assignment} onChange={e=>setAssignment(e.target.value)}/><button disabled={busy} className="rounded border p-2" onClick={()=>void act(async()=>{
@@ -113,8 +128,8 @@ export function SermonWorkspace({plans,session,onUpdatePlan,initialPlanId}:Props
         <label className="block">Sermon title<input maxLength={200} className="block w-full rounded border bg-transparent p-2" value={draft.title} onChange={e=>edit({title:e.target.value})}/></label>
         <label className="block">Private preacher notes<textarea rows={12} className="block w-full rounded border bg-transparent p-2" value={draft.notes} onChange={e=>edit({notes:e.target.value})}/><small>Use a line containing --- between private notes pages.</small></label>
         <label className="block">Congregation slides<textarea rows={8} className="block w-full rounded border bg-transparent p-2" value={slideText} onChange={e=>{dirty.current=true;setSlideText(e.target.value);}}/><small>Use --- on a line between slides. These words appear on the projector.</small></label>
-        <label className="block">Add video or music<input type="file" accept=".mp4,.webm,.mp3,.wav,.m4a,.ogg" onChange={e=>{const file=e.target.files?.[0];e.target.value='';if(file)void act(async()=>{const link=await linkedFolder();const media=await storeSermonMedia(link.directory,file);edit({media:[...draft.media,media]});setMessage('Media copied and verified in the shared folder. Save/send the sermon when ready.');});}}/></label>
-        {draft.media.map((cue,index)=><div key={cue.id+index} className="flex flex-wrap gap-2 items-center"><span className="flex-1">{cue.kind}: {cue.name}</span><label>Play after<select className="rounded border bg-transparent p-2" value={cue.afterSlide} onChange={e=>edit({media:draft.media.map((c,i)=>i===index?{...c,afterSlide:Number(e.target.value)}:c)})}>{Array.from({length:slideText.split(/^\s*---\s*$/m).filter(s=>s.trim()).length+1},(_,i)=><option key={i} value={i}>{i?`Slide ${i}`:'Title'}</option>)}</select></label><button onClick={()=>edit({media:draft.media.filter((_,i)=>i!==index)})}>Remove cue</button></div>)}
+        <label className="block">Add slides (PowerPoint or PDF), video or music<input type="file" accept={session?CLOUD_FILE_ACCEPT:'.mp4,.webm,.mp3,.wav,.m4a,.ogg'} onChange={e=>{const file=e.target.files?.[0];e.target.value='';if(file)void addMedia(file);}}/><small>{session?'Sent through the church cloud from any device, including an iPad. Very large videos need the shared folder on a computer.':'Sign in to send files from any device.'}</small></label>
+        {draft.media.map((cue,index)=><div key={cue.id+index} className="flex flex-wrap gap-2 items-center"><span className="flex-1">{cue.kind==='presentation'?'Slides':cue.kind}: {cue.name}</span><label>{cue.kind==='presentation'?'Show after':'Play after'}<select className="rounded border bg-transparent p-2" value={cue.afterSlide} onChange={e=>edit({media:draft.media.map((c,i)=>i===index?{...c,afterSlide:Number(e.target.value)}:c)})}>{Array.from({length:slideText.split(/^\s*---\s*$/m).filter(s=>s.trim()).length+1},(_,i)=><option key={i} value={i}>{i?`Slide ${i}`:'Title'}</option>)}</select></label><button onClick={()=>edit({media:draft.media.filter((_,i)=>i!==index)})}>Remove cue</button></div>)}
         <div className="flex gap-2"><button className="rounded border px-4 py-2" onClick={()=>void act(save)}>Save draft</button><button className="rounded bg-sky-600 text-white px-4 py-2" onClick={()=>void publish()}>Send my sermon to church</button></div>
       </fieldset>}
       {review&&<details open className="rounded border p-3"><summary>Previously published sermon — review before replacement</summary><pre className="max-h-64 overflow-auto whitespace-pre-wrap text-xs">{review.text}</pre><button className="rounded border p-2" onClick={async()=>{if(!folder)return;const next={...folder,lastExports:{...folder.lastExports,[`sermon:${selectedKey}`]:review.hash}};await rememberServiceFolderLink(next);setFolder(next);setReview(null);setMessage('Reviewed. Send my sermon again to publish your saved draft instead.');}}>I reviewed it; allow my saved draft to replace this version</button></details>}

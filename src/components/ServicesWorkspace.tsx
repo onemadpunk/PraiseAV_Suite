@@ -34,6 +34,9 @@ import { rotaConflicts } from '../utils/rotaConflicts';
 import { effectiveRotaStatus, replyFor, type RotaReplyIndex } from '../utils/rotaReplies';
 import { arrangeChordPro } from '../utils/songArrangement';
 import { assignedEmailAddresses, emailFingerprint, serviceTeamMessage } from '../utils/serviceSharing';
+import type { ChurchSession } from '../services/churchFirebase';
+import { uploadCloudFile } from '../services/cloudFiles';
+import { cloudFileKind } from '../utils/cloudFiles';
 
 interface ServicesWorkspaceProps {
   plans: ServicePlan[];
@@ -45,6 +48,7 @@ interface ServicesWorkspaceProps {
   members: Member[];
   replyIndex?: RotaReplyIndex;
   shareUrl?: string;
+  session?: ChurchSession | null;
   onPushItemToLiveAV: (planId: string, itemIndex: number, slideIndex?: number) => void;
   onOpenPraiseAVConsole: () => void;
 }
@@ -59,6 +63,7 @@ export const ServicesWorkspace: React.FC<ServicesWorkspaceProps> = ({
   members,
   replyIndex = {},
   shareUrl,
+  session = null,
   onPushItemToLiveAV,
   onOpenPraiseAVConsole,
 }) => {
@@ -172,6 +177,20 @@ export const ServicesWorkspace: React.FC<ServicesWorkspaceProps> = ({
     onUpdatePlan({ ...activePlan, items: nextItems });
     if (selectedItemId === id && nextItems[0]) {
       setSelectedItemId(nextItems[0].id);
+    }
+  };
+
+  // A PowerPoint or PDF for a presentation item, sent through the church cloud (works on an iPad).
+  const [fileNotice, setFileNotice] = useState('');
+  const handlePresentationFile = async (itemId: string, file: File) => {
+    if (!session) { setFileNotice('Sign in to the church’s Suite to send the file to the booth.'); return; }
+    if (cloudFileKind(file.name) !== 'presentation') { setFileNotice('Choose a PowerPoint (.pptx or .ppt), .odp or PDF file.'); return; }
+    try {
+      const entry = await uploadCloudFile(session, activePlan.id, file, (done, total) => setFileNotice(`Sending ${file.name}: ${Math.round((done / total) * 100)}%`));
+      onUpdatePlan({ ...activePlan, items: activePlan.items.map((item) => item.id === itemId ? { ...item, externalMediaName: file.name, presentationFile: entry } : item) });
+      setFileNotice(`${file.name} is in the church cloud. Send the service to the booth and PraiseAV makes the slides from it.`);
+    } catch (error) {
+      setFileNotice(error instanceof Error ? error.message : String(error));
     }
   };
 
@@ -377,6 +396,7 @@ export const ServicesWorkspace: React.FC<ServicesWorkspaceProps> = ({
         </div>
       </div>
       {shareNotice && <p role="status" className="text-sm rounded-lg border border-sky-400/50 p-3">{shareNotice}</p>}
+      {fileNotice && <p role="status" className="text-sm rounded-lg border border-sky-400/50 p-3">{fileNotice}</p>}
 
       {/* Optional New Service Plan Form */}
       {showNewPlanForm && (
@@ -781,6 +801,21 @@ export const ServicesWorkspace: React.FC<ServicesWorkspaceProps> = ({
                                   </option>
                                 ))}
                               </select>
+                            </div>
+                          ) : item.type === 'presentation' ? (
+                            <div className="text-[11px] text-slate-500 dark:text-slate-400" onClick={(e) => e.stopPropagation()}>
+                              <div>{item.presentationFile ? `File: ${item.presentationFile.name}` : 'No file yet'}</div>
+                              {session && (
+                                <label className="cursor-pointer text-indigo-600 dark:text-indigo-400 underline">
+                                  {item.presentationFile ? 'Replace file' : 'Add PowerPoint or PDF'}
+                                  <input
+                                    type="file"
+                                    className="sr-only"
+                                    accept=".pptx,.ppt,.odp,.pdf"
+                                    onChange={(e) => { const file = e.target.files?.[0]; e.target.value = ''; if (file) void handlePresentationFile(item.id, file); }}
+                                  />
+                                </label>
+                              )}
                             </div>
                           ) : (
                             <span className="text-[11px] font-mono tabular-nums text-slate-500 dark:text-slate-400">

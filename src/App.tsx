@@ -536,6 +536,7 @@ function SuiteWorkspace({ session, onExit }: { session: ChurchSession; onExit: (
               members={members}
               replyIndex={replyIndex}
               shareUrl={shareUrl}
+              session={session}
               onPushItemToLiveAV={(planId, itemIdx, slideIdx = 0) => {
                 setActivePlanId(planId);
                 setPreview({ activeItemIndex: itemIdx, activeSlideIndex: slideIdx });

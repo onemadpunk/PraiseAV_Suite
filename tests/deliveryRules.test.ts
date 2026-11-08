@@ -44,3 +44,33 @@ test('only the booth writes receipts, under its own email', async () => {
   await assertFails(setDoc(doc(person('leader'), 'deliveryReceipts', 'sunday'), { ...receipt, booth: 'leader@example.org' }));
   await assertSucceeds(getDoc(doc(person('alice'), 'deliveryReceipts', 'sunday')));
 });
+
+test('files from any device: the assigned preacher and planners send them, the booth reads and clears them', async () => {
+  const { Bytes, deleteDoc } = await import('firebase/firestore');
+  const sha = 'b'.repeat(64), name = sha + '.pptx';
+  const record = (by: string) => ({ name: 'Sermon.pptx', fileName: name, sha256: sha, ext: 'pptx', kind: 'presentation', bytes: 10, chunks: 1, uploadedBy: by, uploadedAt: '2026-11-08T10:00:00Z' });
+  const chunk = { data: Bytes.fromUint8Array(new Uint8Array(10)) };
+  await assertFails(setDoc(doc(person('sam'), 'deliveries', 'sunday', 'files', name, 'chunks', '0'), chunk));
+  await assertFails(setDoc(doc(person('booth'), 'deliveries', 'sunday', 'files', name, 'chunks', '0'), chunk));
+  await assertSucceeds(setDoc(doc(person('alice'), 'deliveries', 'sunday', 'files', name, 'chunks', '0'), chunk));
+  await assertFails(setDoc(doc(person('alice'), 'deliveries', 'sunday', 'files', name, 'chunks', '0'), { data: Bytes.fromUint8Array(new Uint8Array(921601)) }));
+  await assertFails(setDoc(doc(person('alice'), 'deliveries', 'sunday', 'files', name), record('bob@example.org')));
+  await assertFails(setDoc(doc(person('alice'), 'deliveries', 'sunday', 'files', 'c'.repeat(64) + '.pptx'), record('alice@example.org')));
+  await assertFails(setDoc(doc(person('alice'), 'deliveries', 'sunday', 'files', sha + '.exe'), { ...record('alice@example.org'), fileName: sha + '.exe', ext: 'exe' }));
+  await assertFails(setDoc(doc(person('alice'), 'deliveries', 'sunday', 'files', name), { ...record('alice@example.org'), bytes: 200 * 1024 * 1024 }));
+  await assertFails(setDoc(doc(person('bob'), 'deliveries', 'sunday', 'files', name), record('bob@example.org')));
+  await assertSucceeds(setDoc(doc(person('alice'), 'deliveries', 'sunday', 'files', name), record('alice@example.org')));
+  // Once sent, the contents can't be swapped.
+  await assertFails(setDoc(doc(person('alice'), 'deliveries', 'sunday', 'files', name), { ...record('alice@example.org'), name: 'Other.pptx' }));
+  await assertFails(setDoc(doc(person('alice'), 'deliveries', 'sunday', 'files', name, 'chunks', '0'), chunk));
+  await assertSucceeds(setDoc(doc(person('leader'), 'deliveries', 'sunday', 'files', 'd'.repeat(64) + '.mp4', 'chunks', '0'), chunk));
+  await assertSucceeds(getDoc(doc(person('alice'), 'deliveries', 'sunday', 'files', name)));
+  await assertFails(getDoc(doc(person('bob'), 'deliveries', 'sunday', 'files', name)));
+  await assertFails(getDoc(doc(person('sam'), 'deliveries', 'sunday', 'files', name)));
+  await assertSucceeds(getDocs(collection(person('booth'), 'deliveries', 'sunday', 'files')));
+  await assertSucceeds(getDoc(doc(person('booth'), 'deliveries', 'sunday', 'files', name, 'chunks', '0')));
+  await assertFails(getDoc(doc(person('alice'), 'deliveries', 'sunday', 'files', name, 'chunks', '0')));
+  await assertSucceeds(deleteDoc(doc(person('booth'), 'deliveries', 'sunday', 'files', name, 'chunks', '0')));
+  await assertSucceeds(deleteDoc(doc(person('booth'), 'deliveries', 'sunday', 'files', name)));
+  await assertFails(deleteDoc(doc(person('alice'), 'deliveries', 'sunday', 'files', 'd'.repeat(64) + '.mp4', 'chunks', '0')));
+});

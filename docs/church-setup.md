@@ -60,7 +60,7 @@ A browser backup is an ordinary unencrypted JSON file containing personal data. 
 
 Use a church-owned email for the booth, such as `yourchurch.avdesk@gmail.com`. The same account can run the church's Google Drive and YouTube on that computer. The booth login has the AV operator role only, so it never sees people, giving or children's records. Signing in to PraiseAV with the administrator's account also works, but then that Google account is signed in on a shared computer.
 
-Video and music for sermons still travel through the shared Services folder (below). The church cloud needs rules v4: an administrator copies the updated rules from Church access when the Suite asks.
+PowerPoints, PDFs, and videos up to 100 MB or music up to 50 MB also travel through the church cloud, so they can be sent from an iPad or phone. Bigger videos still use the shared Services folder (below). The booth clears files from the church cloud two weeks after they were sent, to stay inside Firebase's free storage. The church cloud needs rules v5: an administrator copies the updated rules from Church access when the Suite asks.
 
 **Or use a shared folder:** In the Suite, choose a service, then open **PraiseAV export**. In Chrome or another browser with folder access, click **Send to PraiseAV folder** and choose the same **PraiseAV Services** folder that PraiseAV Windows uses. The Suite remembers the folder in that browser and can send later versions with one click. If PraiseAV already has that service open, the AV desk sees an update notice and chooses when to load the new version. The Suite refuses to replace the file if PraiseAV or another computer has changed it since the last transfer.
 

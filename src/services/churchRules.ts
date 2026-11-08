@@ -1,7 +1,7 @@
 // Each church installs these rules in its own Firebase project. A user owning
 // the Google account named here can administer the church from a fresh project;
 // every other person must be approved by an administrator in the Suite.
-export const CHURCH_RULES_VERSION = 'v4';
+export const CHURCH_RULES_VERSION = 'v5';
 
 export function churchRules(ownerEmail: string, includeDirectory = false): string {
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(ownerEmail)) throw new Error('Enter a valid owner email first.');
@@ -182,6 +182,39 @@ service cloud.firestore {
         allow create, update: if (planner() || assigned()) && validDelivery(itemId)
           && request.resource.data.fileName == 'Sermon ' + planId + '--' + itemId + '.praiseav-sermon';
         allow delete: if planner();
+      }
+      // PowerPoint, PDF, video and music sent from any device: chunks first, then the record
+      // (utils/cloudFiles.ts). Contents never change; the booth checks the SHA-256 and clears old files.
+      match /files/{fileName} {
+        function preacherHere() {
+          return hasRole('preacher')
+            && get(/databases/$(database)/documents/plans/$(planId)).data.sermonAssignments.values().hasAny([request.auth.token.email]);
+        }
+        function sender() { return planner() || preacherHere(); }
+        allow get, list: if planner() || hasRole('av') || preacherHere();
+        allow create: if sender()
+          && fileName.matches('^[0-9a-f]{64}[.](mp4|webm|mp3|wav|m4a|ogg|pdf|pptx|ppt|odp)$')
+          && request.resource.data.keys().hasOnly(['name', 'fileName', 'sha256', 'ext', 'kind', 'bytes', 'chunks', 'uploadedBy', 'uploadedAt'])
+          && request.resource.data.keys().hasAll(['name', 'fileName', 'sha256', 'ext', 'kind', 'bytes', 'chunks', 'uploadedBy', 'uploadedAt'])
+          && request.resource.data.fileName == fileName
+          && request.resource.data.sha256 is string && request.resource.data.sha256.matches('^[0-9a-f]{64}$')
+          && fileName == request.resource.data.sha256 + '.' + request.resource.data.ext
+          && request.resource.data.kind in ['video', 'audio', 'presentation']
+          && request.resource.data.name is string && request.resource.data.name.size() <= 200
+          && request.resource.data.bytes is int && request.resource.data.bytes > 0 && request.resource.data.bytes <= 104857600
+          && request.resource.data.chunks is int && request.resource.data.chunks > 0 && request.resource.data.chunks <= 120
+          && request.resource.data.uploadedAt is string
+          && request.resource.data.uploadedBy == request.auth.token.email;
+        allow delete: if planner() || hasRole('av');
+        match /chunks/{index} {
+          allow get, list: if planner() || hasRole('av');
+          allow create, update: if sender()
+            && index.matches('^[0-9]{1,3}$')
+            && !exists(/databases/$(database)/documents/deliveries/$(planId)/files/$(fileName))
+            && request.resource.data.keys().hasOnly(['data'])
+            && request.resource.data.data is bytes && request.resource.data.data.size() <= 921600;
+          allow delete: if planner() || hasRole('av');
+        }
       }
     }
     match /deliveryReceipts/{id} {
