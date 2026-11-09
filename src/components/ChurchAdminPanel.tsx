@@ -12,7 +12,7 @@ type Request = { uid: string; email: string; name: string; booth?: boolean };
 type Membership = { uid: string; email: string; roles: ChurchRole[] };
 type Profile = { uid: string; displayName?: string; contactNumber?: string; householdName?: string; familyNames?: string };
 
-export function ChurchAdminPanel({ session, onClose }: { session: ChurchSession; onClose: () => void }) {
+export function ChurchAdminPanel({ session, onClose, onBackup, backupNote }: { session: ChurchSession; onClose: () => void; onBackup?: () => void; backupNote?: string }) {
   const [requests, setRequests] = useState<Request[]>([]);
   const [memberships, setMemberships] = useState<Membership[]>([]);
   const [profiles, setProfiles] = useState<Profile[]>([]);
@@ -112,6 +112,14 @@ export function ChurchAdminPanel({ session, onClose }: { session: ChurchSession;
             <button type="button" disabled={busy || newName.trim() === session.connection.churchName} className="px-3 py-2 rounded border disabled:opacity-50" onClick={() => void rename()}>Rename the church</button>
           </div>}
           {listNotice && <p role="status" className="font-medium">{listNotice}</p>}
+        </div>}
+        {onBackup && <div className="rounded-lg border border-amber-400/70 p-3 text-sm space-y-2">
+          <strong>Back up your church</strong>
+          <p>Your church’s records live in your church’s own Firebase project. PraiseAV does not keep a copy, so if something is deleted, nobody at PraiseAV can bring it back. Once a month, download everything and keep the file somewhere safe that the church controls.</p>
+          <p>The file has services, songs, sermon drafts, people, rotas, kids check-ins, groups, room bookings, giving and who has access. It contains personal details and is not encrypted, so keep it private. Videos and music files are not included.</p>
+          {backupNote && <p role="status">{backupNote}</p>}
+          <button type="button" className="px-3 py-2 rounded bg-amber-600 text-white" onClick={onBackup}>Download everything</button>
+          <p className="text-xs">To bring records back, use <em>Restore backup file</em> in the side menu.</p>
         </div>}
         <div className="rounded-lg border border-emerald-400/60 p-3 text-sm space-y-2">
           <strong>Set up the booth computer</strong>

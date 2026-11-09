@@ -54,3 +54,43 @@ export function parseChurchBackup(input: unknown): LegacySnapshot & {sermonDraft
   }
   return result;
 }
+
+/** One person's sign-in access, as saved in a church backup. */
+export type AccessEntry = { uid: string; email: string; roles: string[] };
+
+const KNOWN_ROLES = ['admin', 'office_staff', 'planner', 'preacher', 'worship_leader', 'av', 'musician', 'people', 'kids', 'finance', 'member', 'family'];
+
+/** Reads the optional "who has access" list from a backup. Older backups have none. */
+export function parseAccessList(input: unknown): AccessEntry[] {
+  if (!input || typeof input !== 'object') return [];
+  const list = (input as Record<string, unknown>).churchAccess;
+  if (list === undefined) return [];
+  if (!Array.isArray(list) || list.length > 10000) throw new Error('The backup has an invalid access list.');
+  const seen = new Set<string>();
+  return list.map((entry) => {
+    const value = entry as Record<string, unknown>;
+    if (!value || typeof value.uid !== 'string' || !/^[A-Za-z0-9_-]{1,128}$/.test(value.uid) || seen.has(value.uid)
+      || typeof value.email !== 'string' || value.email.length > 320
+      || !Array.isArray(value.roles) || !value.roles.length || value.roles.some((role) => !KNOWN_ROLES.includes(role as string)))
+      throw new Error('A person in the backup access list is invalid.');
+    seen.add(value.uid);
+    return { uid: value.uid, email: value.email, roles: [...new Set(value.roles as string[])] };
+  });
+}
+
+/** People in the backup who no longer have access. Existing access is never changed or removed. */
+export function missingAccess(current: AccessEntry[], backup: AccessEntry[], ownerUid?: string): AccessEntry[] {
+  const now = new Set(current.map((entry) => entry.uid));
+  return backup.filter((entry) => !now.has(entry.uid) && entry.uid !== ownerUid);
+}
+
+export const lastBackupKey = (projectId: string) => 'praiseav_suite_last_backup_' + projectId;
+
+/** A short, calm line under the backup button. Due after 30 days. */
+export function backupReminder(lastIso: string | null, now = new Date()): { text: string; due: boolean } {
+  const last = lastIso ? new Date(lastIso) : null;
+  if (!last || Number.isNaN(last.getTime())) return { text: 'No backup downloaded on this computer yet.', due: true };
+  const days = Math.floor((now.getTime() - last.getTime()) / 86400000);
+  const when = days <= 0 ? 'today' : days === 1 ? 'yesterday' : days + ' days ago';
+  return { text: 'Last backup on this computer: ' + when + '.', due: days >= 30 };
+}

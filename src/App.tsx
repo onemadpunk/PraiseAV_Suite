@@ -49,7 +49,8 @@ import { useChurchCollection } from './services/useChurchCollection';
 import { servicesUsingSong } from './utils/serviceExport';
 import { listedChurchName } from './services/churchDirectory';
 import { SermonWorkspace } from './components/SermonWorkspace';
-import { parseChurchBackup } from './services/backup';
+import { backupReminder, lastBackupKey, parseAccessList, parseChurchBackup } from './services/backup';
+import { accessToRestore, readChurchAccess, restoreAccess } from './services/churchAccessBackup';
 import {readSermonDrafts,restoreSermonDrafts} from './services/sermonBackup';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { saveRotaReply, subscribeRotaReplies } from './services/rotaReplies';
@@ -158,6 +159,8 @@ function SuiteWorkspace({ session, onExit }: { session: ChurchSession; onExit: (
   });
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [lastBackup, setLastBackup] = useState<string | null>(() => { try { return session ? localStorage.getItem(lastBackupKey(session.connection.config.projectId)) : null; } catch { return null; } });
+  const reminder = backupReminder(lastBackup);
 
   // Sync Dark Mode class and PraiseAV custom theme CSS variables on <html>
   useEffect(() => {
@@ -243,10 +246,13 @@ function SuiteWorkspace({ session, onExit }: { session: ChurchSession; onExit: (
     if(!dataReady){setDataError('Wait for church records to finish loading before making a backup.');return;}
     try {
     const sermonDrafts=session?await readSermonDrafts(session,plans.map(plan=>plan.id)):undefined;
+    const churchAccess=session?await readChurchAccess(session):undefined;
     const fullBackup = {
       exportedAt: new Date().toISOString(),
       platform: 'PraiseAV Suite church backup',
+      ...(session && {churchName: session.connection.churchName}),
       ...(sermonDrafts && {sermonDrafts}),
+      ...(churchAccess && {churchAccess}),
       plans,
       songs,
       members,
@@ -264,6 +270,7 @@ function SuiteWorkspace({ session, onExit }: { session: ChurchSession; onExit: (
     a.download = `praiseav-suite-church-database-${new Date().toISOString().slice(0, 10)}.json`;
     a.click();
     URL.revokeObjectURL(url);
+    if(session){const now=new Date().toISOString();try{localStorage.setItem(lastBackupKey(session.connection.config.projectId),now);}catch{/* private window */}setLastBackup(now);}
     }catch(error){setDataError('Could not create the complete backup: '+String(error));}
   };
 
@@ -276,7 +283,9 @@ function SuiteWorkspace({ session, onExit }: { session: ChurchSession; onExit: (
     reader.onerror = () => setDataError('Could not read the backup file.');
     reader.onload = async () => {
       try {
-        const parsed = parseChurchBackup(JSON.parse(String(reader.result)));
+        const raw = JSON.parse(String(reader.result));
+        const parsed = parseChurchBackup(raw);
+        const backupAccess = parseAccessList(raw);
         if (session && !confirm('Restore this backup into ' + session.connection.churchName + '? Records with the same IDs will be replaced, and records missing from the backup will be removed. Download a backup of the current church first.')) return;
         if(session && parsed.sermonDrafts)await restoreSermonDrafts(session,[...plans.map(plan=>plan.id),...parsed.plans.map(plan=>plan.id)],parsed.sermonDrafts);
         setPlans(parsed.plans);
@@ -287,6 +296,12 @@ function SuiteWorkspace({ session, onExit }: { session: ChurchSession; onExit: (
         setRoomBookings(parsed.roomBookings);
         setDonations(parsed.donations);
         setDataError(session && !parsed.sermonDrafts?'This older backup has no private sermon drafts. Existing drafts have been kept.':'');
+        if (session && backupAccess.length) {
+          const missing = await accessToRestore(session, backupAccess);
+          if (missing.length && confirm(missing.length + (missing.length === 1 ? ' person' : ' people') + ' in this backup no longer have access to the church:\n\n' + missing.map((person) => person.email).join('\n') + '\n\nGive them their access back, with the same roles as in the backup? Nobody else\'s access is changed.')) {
+            await restoreAccess(session, missing);
+          }
+        }
       } catch (failure) {
         setDataError('Could not restore backup: ' + String(failure));
       }
@@ -501,8 +516,9 @@ function SuiteWorkspace({ session, onExit }: { session: ChurchSession; onExit: (
               className="w-full flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
             >
               <Download className="w-3.5 h-3.5" />
-              Download church backup (.json)
+              Download everything (backup)
             </button>}
+            {session && (session.owner || session.roles.includes('admin')) && <p className={'px-3 text-[11px] ' + (reminder.due ? 'text-amber-600 dark:text-amber-400' : 'text-slate-500')}>{reminder.text}{reminder.due ? ' Save one each month: deleted records cannot be brought back without it.' : ''}</p>}
 
             {(!session || session.owner || session.roles.includes('admin')) && <button
               type="button"
@@ -636,7 +652,7 @@ function SuiteWorkspace({ session, onExit }: { session: ChurchSession; onExit: (
           </>}
         </main>
       </div>
-      {showAdmin && session && <ChurchAdminPanel session={session} onClose={() => setShowAdmin(false)} />}
+      {showAdmin && session && <ChurchAdminPanel session={session} onClose={() => setShowAdmin(false)} onBackup={session.owner || session.roles.includes('admin') ? handleExportFullDatabase : undefined} backupNote={reminder.text} />}
       {showProfile && session && <div className="fixed inset-0 z-50 bg-black/70 p-4 overflow-y-auto" role="dialog" aria-modal="true" aria-label="My details"><div className="max-w-xl mx-auto bg-white dark:bg-[#111827] rounded-2xl p-6 space-y-4"><div className="flex justify-between items-center"><h2 className="text-xl font-bold">My details</h2><button type="button" aria-label="Close my details" onClick={() => setShowProfile(false)}>✕</button></div><OwnProfileForm session={session} /></div></div>}
     </div>
   );
