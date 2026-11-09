@@ -330,7 +330,7 @@ export function ChurchGate({ onReady }: { onReady: (session: ChurchSession) => v
             }}>Download older records</button></details>}
           </>
         )}
-        <p className="text-sm"><a className="underline" href="https://github.com/onemadpunk/PraiseAV_Suite/blob/main/docs/church-setup.md" target="_blank" rel="noreferrer">Full setup guide</a> · <a className="underline" href="https://praiseav.com/privacy.html" target="_blank" rel="noreferrer">Privacy policy</a></p>
+        <p className="text-sm"><a className="underline" href="https://praiseav.com/help/suite.html#setting-up-your-church" target="_blank" rel="noreferrer">Full setup guide</a> · <a className="underline" href="https://praiseav.com/privacy.html" target="_blank" rel="noreferrer">Privacy policy</a></p>
         {notice && <p role="status" className="text-emerald-700 dark:text-emerald-300 text-sm">{notice}</p>}
         {error && <p role="alert" className="text-red-600 text-sm break-words">{error}</p>}
       </div>

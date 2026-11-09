@@ -303,7 +303,7 @@ function SuiteWorkspace({ session, onExit }: { session: ChurchSession; onExit: (
 
         {/* Account and export actions */}
         <div className="flex items-center gap-3 shrink-0">
-          <a className="text-xs underline" href="https://github.com/onemadpunk/PraiseAV_Suite/blob/main/docs/workflows.md" target="_blank" rel="noreferrer">Help</a>
+          <a className="text-xs underline" href="https://praiseav.com/help/suite.html" target="_blank" rel="noreferrer">Help</a>
           {session && <button type="button" className="px-3 py-2 text-xs border rounded-lg" onClick={() => setShowProfile(true)}>My details</button>}
           {session && (session.owner || session.roles.includes('admin') || session.roles.includes('office_staff')) && <button type="button" className="px-3 py-2 text-xs border rounded-lg" onClick={() => setShowAdmin(true)}>Church access</button>}
           {moduleAllowed('praise-av') && <button

@@ -142,18 +142,19 @@ export const PraseAVBridgeWorkspace: React.FC<Props> = ({
 
   return <section className="space-y-6 max-w-3xl">
     <h1 className="text-2xl font-bold">Use this service in PraiseAV</h1>
-    <p>The Suite plans services and exports a .praiseav file. It does not control a live projector. Choose PraiseAV’s Services folder to send a service file there without downloading and moving it yourself.</p>
+    <p>The Suite plans the service; PraiseAV on the church computer runs it. The Suite never controls a live projector.</p>
     <ol className="list-decimal pl-6 space-y-2 text-sm">
       <li>Choose the service plan in the Services page.</li>
-      <li>In PraiseAV Windows, open More → Church sharing to see or choose its Services folder.</li>
-      <li>Use Send to PraiseAV folder below and choose that same folder in this browser. If it is a synced OneDrive or Google Drive folder, the file can reach the church computer through that service.</li>
-      <li>Open the service in PraiseAV Windows. If you send a later update, the AV desk sees a notice and chooses when to load it. PraiseAV never changes the live slide without the operator.</li>
-      <li>Assign the preacher in My sermon & tablet. They save notes and slides, add videos/music to the shared folder and use Send my sermon to church. The desktop combines their published contribution with this service and checks every file before marking it Ready.</li>
-      <li>Other visiting-speaker presentation placeholders still need their original PowerPoint or PDF added on the desktop.</li>
+      <li>Once, connect the church computer: Church access → Set up the booth computer, then paste the booth code in PraiseAV under More → Church sharing.</li>
+      <li>Click Send to the booth below. PraiseAV saves the service by itself, and this page shows when the booth has the latest version.</li>
+      <li>Send again after any change. If the service is already open, the AV desk sees Load update and chooses when to load it. PraiseAV never changes the live slide without the operator.</li>
+      <li>Assign the preacher in My sermon & tablet. They save notes and slides, add a PowerPoint, PDF, video or music, and use Send my sermon to church. PraiseAV adds it to this service and checks every file before marking it Ready.</li>
+      <li>A guest speaker’s PowerPoint or PDF can be added to its row on the Services page from any device.</li>
     </ol>
+    <p className="text-sm">Step-by-step guide: <a className="underline" href="https://praiseav.com/help/suite.html" target="_blank" rel="noreferrer">PraiseAV Suite help</a>.</p>
     {canSendToBooth && <div className="space-y-2 rounded border border-emerald-500/50 p-4">
       <h2 className="font-semibold">Send to the booth</h2>
-      <p className="text-sm">Works from any computer, tablet or phone. PraiseAV on the booth computer, signed in to this church, saves it into its Services folder by itself. Video and music files still travel through the shared Services folder.</p>
+      <p className="text-sm">Works from any computer, tablet or phone. PraiseAV on the booth computer, signed in to this church, saves it into its Services folder by itself. PowerPoints, PDFs, videos up to 100 MB and music up to 50 MB go with it; bigger videos travel through the shared Services folder.</p>
       <button type="button" disabled={!activePlan || boothBusy} onClick={sendToBooth} className="px-4 py-2 rounded bg-emerald-600 text-white disabled:opacity-50">{boothBusy ? 'Sending…' : 'Send to the booth'}</button>
       <p role="status" className="text-sm">{boothStatusText(boothStatus(booth.delivery, booth.receipt))}</p>
       {boothMessage && <p className="text-sm">{boothMessage}</p>}
