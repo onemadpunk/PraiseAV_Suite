@@ -10,7 +10,7 @@ import {
 } from '../services/churchFirebase';
 import { churchRules } from '../services/churchRules';
 import { checkChurchRulesHealth } from '../services/churchRulesHealth';
-import { DirectoryChurch, cancelChurchReservation, directoryId, findChurches, finishChurchRegistration, refreshSavedReservation, reserveChurch, savedReservation } from '../services/churchDirectory';
+import { DirectoryChurch, cancelChurchReservation, connectionFromDirectory, directoryId, findChurches, finishChurchRegistration, refreshSavedReservation, reserveChurch, savedReservation } from '../services/churchDirectory';
 import { readLegacySnapshot } from '../services/legacyData';
 import { OwnProfileForm } from './OwnProfileForm';
 
@@ -65,9 +65,12 @@ export function ChurchGate({ onReady }: { onReady: (session: ChurchSession) => v
     const app = churchApp(connection);
     const db = getFirestore(app);
     try {
-      const { roles, owner } = await getChurchRoles(db, user, connection.ownerEmail);
+      const { roles, owner } = await getChurchRoles(db, user, connection);
       if (owner) await getDoc(doc(db, 'memberships', user.uid)); // verifies that this project's rules are installed
-      const session = { connection, app, db, user, roles, owner };
+      // The owner opened the church from the public list: remember their email so rule updates work.
+      const known = owner && !connection.ownerEmail ? { churchName: connection.churchName, config: connection.config, ownerEmail: (user.email || '').toLowerCase() } : connection;
+      if (known !== connection) saveChurchConnection(known);
+      const session = { connection: known, app, db, user, roles, owner };
       if (roles.length) onReady(session);
       else setPending(session);
       setError('');
@@ -89,7 +92,7 @@ export function ChurchGate({ onReady }: { onReady: (session: ChurchSession) => v
     return onSnapshot(doc(pending.db, 'memberships', pending.user.uid), async (snapshot) => {
       if (!snapshot.exists()) return;
       try {
-        const { roles, owner } = await getChurchRoles(pending.db, pending.user, pending.connection.ownerEmail);
+        const { roles, owner } = await getChurchRoles(pending.db, pending.user, pending.connection);
         if (roles.length) onReady({ ...pending, roles, owner });
       } catch (failure) { setError(String(failure)); }
     }, (failure) => setError(failure.message));
@@ -289,7 +292,7 @@ export function ChurchGate({ onReady }: { onReady: (session: ChurchSession) => v
           </>
         ) : (
           <>
-            <p>Find your church first. If it already uses Suite, ask its administrator for the church link. Only one person needs to set up a new church.</p>
+            <p>Find your church by its name and town. If it already uses Suite, you can sign in from here when the church has chosen to be listed, or use the church link from its administrator. Only one person needs to set up a new church.</p>
             {directoryAvailable ? <section className="rounded-xl border border-slate-200 dark:border-slate-700 p-4 space-y-3" aria-label="Find your church">
               <h2 className="font-semibold text-lg">Find your church</h2>
               <form className="space-y-3" onSubmit={(event) => { event.preventDefault(); void searchChurch(); }}>
@@ -298,7 +301,9 @@ export function ChurchGate({ onReady }: { onReady: (session: ChurchSession) => v
                 {!reservedId && <button type="submit" className="px-4 py-2 rounded bg-sky-600 text-white disabled:opacity-50" disabled={busy}>Find church</button>}
               </form>
               {searched && !reservedId && <div className="space-y-2 text-sm">
-                {matches.length > 0 ? <><p>Churches with this name:</p><ul className="space-y-2">{matches.map((church) => <li key={church.id} className="rounded border border-slate-200 dark:border-slate-700 p-3"><strong>{church.churchName}</strong> · {church.town}<p className="mt-1">{church.status === 'ready' ? 'Already using Suite. Ask your church administrator for its link so you can request access.' : 'Setup is in progress. Ask the person setting it up for the church link.'}</p></li>)}</ul></> : <p>No church with this name was found.</p>}
+                {matches.length > 0 ? <><p>Churches with this name:</p><ul className="space-y-2">{matches.map((church) => <li key={church.id} className="rounded border border-slate-200 dark:border-slate-700 p-3"><strong>{church.churchName}</strong> · {church.town}{(() => { const listed = connectionFromDirectory(church); return listed
+                  ? <div className="mt-2"><button type="button" className="px-3 py-2 rounded bg-sky-600 text-white" onClick={() => { saveChurchConnection(listed); setConnection(listed); setError(''); }}>Sign in to {church.churchName}</button></div>
+                  : <p className="mt-1">{church.status === 'ready' ? 'Already using Suite. Ask your church administrator for its link so you can request access.' : 'Setup is in progress. Ask the person setting it up for the church link.'}</p>; })()}</li>)}</ul></> : <p>No church with this name was found.</p>}
                 {matches.some((church) => church.id === directoryId(churchName, town)) ? <p>If this is a separate congregation with the same name, add its neighbourhood to the church name and search again.</p> : <button type="button" className="px-4 py-2 rounded border border-sky-500 disabled:opacity-50" disabled={busy} onClick={registerChurch}>Set up this church</button>}
               </div>}
               {reservedId && <div className="text-sm space-y-2"><p className="text-emerald-700 dark:text-emerald-300">Church registration reserved for about two weeks. Continue the one-time setup below.</p><button type="button" className="underline disabled:opacity-50" disabled={busy} onClick={async () => { setBusy(true); try { await cancelChurchReservation(reservedId); setReservedId(null); setOwnerEmail(''); setSearched(false); setError(''); } catch (failure) { setError(String(failure)); } finally { setBusy(false); } }}>Change church name or town</button></div>}

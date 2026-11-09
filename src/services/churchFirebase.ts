@@ -13,6 +13,8 @@ export interface ChurchConnection {
   config: FirebaseOptions & { projectId: string; appId: string; apiKey: string; authDomain: string };
   ownerEmail: string;
   churchName: string;
+  /** A church opened from the public church list knows its owner only by this hash, not the email. */
+  ownerEmailSha256?: string;
 }
 
 export interface ChurchSession {
@@ -57,10 +59,11 @@ export function parseChurchConnection(input: unknown): ChurchConnection {
   }
   if (!/^[a-z0-9-]{6,100}$/.test(config.projectId)) throw new Error('Firebase project ID is invalid.');
   const ownerEmail = String(raw.ownerEmail || '').trim().toLowerCase();
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(ownerEmail)) throw new Error('Enter the church administrator’s Google email address.');
+  const ownerEmailSha256 = typeof raw.ownerEmailSha256 === 'string' && /^[0-9a-f]{64}$/.test(raw.ownerEmailSha256) ? raw.ownerEmailSha256 : undefined;
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(ownerEmail) && !(ownerEmail === '' && ownerEmailSha256)) throw new Error('Enter the church administrator’s Google email address.');
   const churchName = String(raw.churchName || '').trim().slice(0, 100);
   if (!churchName) throw new Error('Enter the church name.');
-  return { config, ownerEmail, churchName };
+  return ownerEmailSha256 ? { config, ownerEmail, churchName, ownerEmailSha256 } : { config, ownerEmail, churchName };
 }
 
 export function readChurchConnection(): ChurchConnection | null {
@@ -135,8 +138,16 @@ export async function signOutChurch(connection: ChurchConnection) {
   await signOut(getAuth(churchApp(connection)));
 }
 
-export async function getChurchRoles(db: Firestore, user: User, ownerEmail: string): Promise<{ roles: ChurchRole[]; owner: boolean }> {
-  const owner = Boolean(user.emailVerified && user.email?.toLowerCase() === ownerEmail);
+export async function emailSha256(email: string): Promise<string> {
+  const bytes = new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(email.trim().toLowerCase())));
+  return Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('');
+}
+
+export async function getChurchRoles(db: Firestore, user: User, connection: Pick<ChurchConnection, 'ownerEmail' | 'ownerEmailSha256'>): Promise<{ roles: ChurchRole[]; owner: boolean }> {
+  const email = user.email?.toLowerCase() || '';
+  const owner = Boolean(user.emailVerified && email && (connection.ownerEmail
+    ? email === connection.ownerEmail
+    : connection.ownerEmailSha256 === await emailSha256(email)));
   if (owner) return { roles: ROLE_LIST, owner: true };
   if (!user.emailVerified) return { roles: [], owner: false };
   const membership = await getDoc(doc(db, 'memberships', user.uid));

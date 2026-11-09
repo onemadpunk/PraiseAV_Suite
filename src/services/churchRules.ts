@@ -76,6 +76,20 @@ service cloud.firestore {
         && resource.data.status == 'setting-up'
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status'])
         && request.resource.data.status == 'cancelled'
+      ) || (
+        // The owner lists the church so members can find it and sign in (its public Web configuration), or unlists it.
+        verified() && resource.data.ownerUid == request.auth.uid
+        && resource.data.status == 'ready'
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['signIn'])
+        && (!('signIn' in request.resource.data) || (
+          request.resource.data.signIn.keys().hasOnly(['apiKey', 'authDomain', 'projectId', 'appId', 'ownerEmailSha256'])
+          && request.resource.data.signIn.keys().hasAll(['apiKey', 'authDomain', 'projectId', 'appId', 'ownerEmailSha256'])
+          && request.resource.data.signIn.projectId == resource.data.projectId
+          && request.resource.data.signIn.apiKey is string && request.resource.data.signIn.apiKey.size() < 100
+          && request.resource.data.signIn.authDomain is string && request.resource.data.signIn.authDomain.size() < 200
+          && request.resource.data.signIn.appId is string && request.resource.data.signIn.appId.size() < 100
+          && request.resource.data.signIn.ownerEmailSha256 is string && request.resource.data.signIn.ownerEmailSha256.matches('^[0-9a-f]{64}$')
+        ))
       );
       allow delete: if false;
     }` : ''}

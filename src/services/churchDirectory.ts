@@ -1,6 +1,8 @@
 import { FirebaseApp, FirebaseOptions, getApp, getApps, initializeApp } from 'firebase/app';
 import { GoogleAuthProvider, getAuth, signInWithPopup } from 'firebase/auth';
-import { Timestamp, collection, doc, getDoc, getDocs, getFirestore, limit, query, runTransaction, where } from 'firebase/firestore';
+import { Timestamp, collection, deleteField, doc, getDoc, getDocs, getFirestore, limit, query, runTransaction, updateDoc, where } from 'firebase/firestore';
+import type { ChurchConnection } from './churchFirebase';
+import { emailSha256 } from './churchFirebase';
 
 export type DirectoryChurch = {
   id: string;
@@ -12,7 +14,12 @@ export type DirectoryChurch = {
   ownerUid: string;
   expiresAt?: Timestamp;
   projectId?: string;
+  /** Present only when the church's owner chose to let members find it by name and sign in. */
+  signIn?: DirectorySignIn;
 };
+
+/** The church's public Firebase Web configuration (the same as in its church link), minus the owner's email. */
+export type DirectorySignIn = { apiKey: string; authDomain: string; projectId: string; appId: string; ownerEmailSha256: string };
 
 const RESERVATION_KEY = 'praiseav_suite_church_reservation_v1';
 const DIRECTORY_PROJECT = 'praiseav-suite';
@@ -132,4 +139,47 @@ export async function cancelChurchReservation(id: string): Promise<void> {
     transaction.update(reference, { status: 'cancelled' });
   });
   localStorage.removeItem(RESERVATION_KEY);
+}
+
+/** Opens a church found in the public list, as its church link would. */
+export function connectionFromDirectory(church: DirectoryChurch): ChurchConnection | null {
+  const signIn = church.signIn;
+  if (church.status !== 'ready' || !signIn || signIn.projectId !== church.projectId) return null;
+  return {
+    config: { apiKey: signIn.apiKey, authDomain: signIn.authDomain, projectId: signIn.projectId, appId: signIn.appId },
+    churchName: church.churchName, ownerEmail: '', ownerEmailSha256: signIn.ownerEmailSha256,
+  };
+}
+
+/** The owner finds their own entry in the public list (they registered it with their Google account). */
+async function ownEntry(connection: ChurchConnection) {
+  const app = await directoryApp();
+  const auth = getAuth(app);
+  await auth.authStateReady();
+  let user = auth.currentUser;
+  if (!user || user.email?.toLowerCase() !== connection.ownerEmail) {
+    const provider = new GoogleAuthProvider();
+    provider.setCustomParameters({ prompt: 'select_account', login_hint: connection.ownerEmail });
+    user = (await signInWithPopup(auth, provider)).user;
+  }
+  if (user.email?.toLowerCase() !== connection.ownerEmail) throw new Error('Use the Google account that registered this church (' + connection.ownerEmail + ').');
+  const db = getFirestore(app);
+  const found = await getDocs(query(collection(db, 'churchDirectory'), where('ownerUid', '==', user.uid), where('projectId', '==', connection.config.projectId), limit(1)));
+  if (found.empty) throw new Error('This church is not in the PraiseAV church list. Churches set up before the list existed can be added by setting up again with the same Firebase project.');
+  return { db, entry: found.docs[0] };
+}
+
+export async function churchListed(connection: ChurchConnection): Promise<boolean> {
+  const db = getFirestore(await directoryApp());
+  const found = await getDocs(query(collection(db, 'churchDirectory'), where('projectId', '==', connection.config.projectId), limit(5)));
+  return found.docs.some((entry) => Boolean(entry.data().signIn));
+}
+
+/** Lets members find the church by name and sign in, or stops that. Only the church's owner can. */
+export async function setChurchListed(connection: ChurchConnection, listed: boolean): Promise<void> {
+  const { db, entry } = await ownEntry(connection);
+  if (!listed) { await updateDoc(doc(db, 'churchDirectory', entry.id), { signIn: deleteField() }); return; }
+  const { apiKey, authDomain, projectId, appId } = connection.config;
+  const signIn: DirectorySignIn = { apiKey, authDomain, projectId, appId, ownerEmailSha256: await emailSha256(connection.ownerEmail) };
+  await updateDoc(doc(db, 'churchDirectory', entry.id), { signIn });
 }
