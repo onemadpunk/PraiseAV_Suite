@@ -3,7 +3,7 @@ import { collection, onSnapshot } from 'firebase/firestore';
 import { ChurchRole, ChurchSession, approveChurchAccess, boothConnectionCode, churchInviteLink, removeChurchAccess, updateChurchAccess } from '../services/churchFirebase';
 import { churchRules } from '../services/churchRules';
 import { checkChurchRulesHealth, ChurchRulesHealth } from '../services/churchRulesHealth';
-import { churchListed, setChurchListed } from '../services/churchDirectory';
+import { churchListing, setChurchListed } from '../services/churchDirectory';
 
 const ROLES: ChurchRole[] = ['admin', 'office_staff', 'planner', 'preacher', 'worship_leader', 'av', 'musician', 'people', 'kids', 'finance', 'member', 'family'];
 const ROLE_NAMES: Record<ChurchRole, string> = { admin: 'Administrator', office_staff: 'Office staff', planner: 'Service planner', preacher: 'Preacher', worship_leader: 'Worship leader', av: 'AV operator', musician: 'Musician', people: 'People team', kids: 'Kids team', finance: 'Finance team', member: 'Member', family: 'Family' };
@@ -21,18 +21,21 @@ export function ChurchAdminPanel({ session, onClose }: { session: ChurchSession;
   const [inviteEmail, setInviteEmail] = useState('');
   const [rulesHealth, setRulesHealth] = useState<ChurchRulesHealth | 'checking'>('checking');
   const canManage = session.owner || session.roles.includes('admin');
-  const [listed, setListed] = useState<boolean | null>(null);
+  const [listing, setListing] = useState<'listed' | 'unlisted' | 'missing' | null>(null);
+  const [listTown, setListTown] = useState('');
+  const listed = listing === null ? null : listing === 'listed';
   useEffect(() => {
     if (!session.owner) return;
     let active = true;
-    churchListed(session.connection).then((value) => { if (active) setListed(value); }, () => { if (active) setListed(null); });
+    churchListing(session.connection).then((value) => { if (active) setListing(value); }, () => { if (active) setListing(null); });
     return () => { active = false; };
   }, [session.owner, session.connection]);
   const changeListing = async (next: boolean) => {
+    if (next && listing === 'missing' && listTown.trim().length < 2) { setNotice('Enter the church’s town or city first.'); return; }
     setBusy(true);
     try {
-      await setChurchListed(session.connection, next);
-      setListed(next);
+      await setChurchListed(session.connection, next, listTown);
+      setListing(next ? 'listed' : 'unlisted');
       setNotice(next ? 'Your church is listed. Members can now find it by name and town in the Suite and sign in.' : 'Your church is no longer listed. Members need the church link to sign in.');
     } catch (failure) { setNotice(failure instanceof Error ? failure.message : String(failure)); }
     finally { setBusy(false); }
@@ -85,6 +88,7 @@ export function ChurchAdminPanel({ session, onClose }: { session: ChurchSession;
           <strong>Let members find the church by name</strong>
           <p>When this is on, anyone can type your church’s name and town in the Suite and get its sign-in page, without the church link. They still need your approval before they see anything. Turn it off to go back to link-only.</p>
           <p role="status">{listed === null ? 'Checking…' : listed ? 'On: members can find the church by name.' : 'Off: members need the church link.'}</p>
+          {listing === 'missing' && <label className="block">Town or city (shown with the church name)<input className="w-full mt-1 p-2 border rounded text-slate-900" value={listTown} onChange={(event) => setListTown(event.target.value)} /></label>}
           <button type="button" disabled={busy || listed === null} className="px-3 py-2 rounded border disabled:opacity-50" onClick={() => void changeListing(!listed)}>{listed ? 'Stop listing the church' : 'List the church'}</button>
         </div>}
         <div className="rounded-lg border border-emerald-400/60 p-3 text-sm space-y-2">

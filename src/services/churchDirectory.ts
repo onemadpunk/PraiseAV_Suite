@@ -165,19 +165,27 @@ async function ownEntry(connection: ChurchConnection) {
   if (user.email?.toLowerCase() !== connection.ownerEmail) throw new Error('Use the Google account that registered this church (' + connection.ownerEmail + ').');
   const db = getFirestore(app);
   const found = await getDocs(query(collection(db, 'churchDirectory'), where('ownerUid', '==', user.uid), where('projectId', '==', connection.config.projectId), limit(1)));
-  if (found.empty) throw new Error('This church is not in the PraiseAV church list. Churches set up before the list existed can be added by setting up again with the same Firebase project.');
-  return { db, entry: found.docs[0] };
+  return { db, entry: found.empty ? null : found.docs[0] };
 }
 
-export async function churchListed(connection: ChurchConnection): Promise<boolean> {
+/** 'missing': set up before the church list existed, so the owner adds it (with its town) when listing it. */
+export async function churchListing(connection: ChurchConnection): Promise<'listed' | 'unlisted' | 'missing'> {
   const db = getFirestore(await directoryApp());
   const found = await getDocs(query(collection(db, 'churchDirectory'), where('projectId', '==', connection.config.projectId), limit(5)));
-  return found.docs.some((entry) => Boolean(entry.data().signIn));
+  if (found.empty) return 'missing';
+  return found.docs.some((entry) => Boolean(entry.data().signIn)) ? 'listed' : 'unlisted';
 }
 
 /** Lets members find the church by name and sign in, or stops that. Only the church's owner can. */
-export async function setChurchListed(connection: ChurchConnection, listed: boolean): Promise<void> {
-  const { db, entry } = await ownEntry(connection);
+export async function setChurchListed(connection: ChurchConnection, listed: boolean, town = ''): Promise<void> {
+  let { db, entry } = await ownEntry(connection);
+  if (!entry && listed) {
+    // A church set up before the list existed: register its name and town now, as setup does.
+    const reservation = await reserveChurch(connection.churchName, town);
+    await finishChurchRegistration(reservation.id, connection.config.projectId, connection.ownerEmail);
+    ({ db, entry } = await ownEntry(connection));
+  }
+  if (!entry) throw new Error('This church is not in the PraiseAV church list yet.');
   if (!listed) { await updateDoc(doc(db, 'churchDirectory', entry.id), { signIn: deleteField() }); return; }
   const { apiKey, authDomain, projectId, appId } = connection.config;
   const signIn: DirectorySignIn = { apiKey, authDomain, projectId, appId, ownerEmailSha256: await emailSha256(connection.ownerEmail) };
