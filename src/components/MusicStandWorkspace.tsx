@@ -113,26 +113,26 @@ export function MusicStandWorkspace({ plans, songs, initialPlanId, userEmail = '
       </div>
     </div>
     <label className="block text-sm">Service
-      <select className="block w-full p-2 mt-1 border rounded text-slate-900" value={plan?.id || ''} onChange={(e) => setPlanId(e.target.value)}>
+      <select className="block w-full p-2 mt-1 border rounded bg-white text-slate-900" value={plan?.id || ''} onChange={(e) => setPlanId(e.target.value)}>
         {plans.map((entry) => <option key={entry.id} value={entry.id}>{entry.date} — {entry.title}</option>)}
       </select>
     </label>
     {!entries.length ? <p>No songs in this service yet.</p> : <>
       <div className="flex gap-2 items-center">
         <button className="px-3 py-2 border rounded" disabled={songIndex <= 0} onClick={() => setSongIndex((index) => index - 1)}>Previous</button>
-        <select aria-label="Choose song" className="flex-1 p-2 border rounded text-slate-900" value={songIndex} onChange={(e) => setSongIndex(Number(e.target.value))}>
+        <select aria-label="Choose song" className="flex-1 p-2 border rounded bg-white text-slate-900" value={songIndex} onChange={(e) => setSongIndex(Number(e.target.value))}>
           {entries.map(({ item, song }, index) => <option key={item.id} value={index}>{index + 1}. {song.title}</option>)}
         </select>
         <button className="px-3 py-2 border rounded" disabled={songIndex >= entries.length - 1} onClick={() => setSongIndex((index) => index + 1)}>Next</button>
       </div>
       <div className="flex flex-wrap gap-4">
         <label className="text-sm">Sounding key
-          <select className="block p-2 border rounded text-slate-900" value={soundingKey} onChange={(e) => setSelectedKey(e.target.value)}>
+          <select className="block p-2 border rounded bg-white text-slate-900" value={soundingKey} onChange={(e) => setSelectedKey(e.target.value)}>
             {ALL_KEYS.map((key) => <option key={key} value={key}>{key}</option>)}
           </select>
         </label>
         <label className="text-sm">Capo fret
-          <select className="block p-2 border rounded text-slate-900" value={capo} onChange={(e) => setCapo(Number(e.target.value))}>
+          <select className="block p-2 border rounded bg-white text-slate-900" value={capo} onChange={(e) => setCapo(Number(e.target.value))}>
             {Array.from({ length: 8 }, (_, index) => <option key={index} value={index}>{index}</option>)}
           </select>
         </label>

@@ -503,7 +503,7 @@ export const ServicesWorkspace: React.FC<ServicesWorkspaceProps> = ({
                 className="w-full px-3 py-2 text-sm font-mono bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-lg"
               />
             </div>
-            <div><label className="block text-xs font-medium mb-1">Start time</label><input type="time" value={planTimeInput} onChange={(e) => setPlanTimeInput(e.target.value)} className="w-full px-3 py-2 border rounded text-slate-900" /></div>
+            <div><label className="block text-xs font-medium mb-1">Start time</label><input type="time" value={planTimeInput} onChange={(e) => setPlanTimeInput(e.target.value)} className="w-full px-3 py-2 border rounded bg-white text-slate-900" /></div>
           </div>
           <div className="flex justify-end">
             <button
