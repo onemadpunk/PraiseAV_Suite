@@ -107,6 +107,9 @@ export const ServicesWorkspace: React.FC<ServicesWorkspaceProps> = ({
   const [selectedMemberId, setSelectedMemberId] = useState(members[0]?.id || '');
   const [selectedDepartment, setSelectedDepartment] = useState<RotaDepartment>('Band & Vocals');
   const [selectedRole, setSelectedRole] = useState('Worship Leader');
+  // Declared with the other hooks: the empty-church screen below returns early, and a hook after it
+  // crashes the page when the first service is created.
+  const [fileNotice, setFileNotice] = useState('');
 
   const handleCreatePlanSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -182,7 +185,6 @@ export const ServicesWorkspace: React.FC<ServicesWorkspaceProps> = ({
   };
 
   // A PowerPoint or PDF for a presentation item, sent through the church cloud (works on an iPad).
-  const [fileNotice, setFileNotice] = useState('');
   const handlePresentationFile = async (itemId: string, file: File) => {
     if (!session) { setFileNotice('Sign in to the church’s Suite to send the file to the booth.'); return; }
     if (cloudFileKind(file.name) !== 'presentation') { setFileNotice('Choose a PowerPoint (.pptx or .ppt), .odp or PDF file.'); return; }
