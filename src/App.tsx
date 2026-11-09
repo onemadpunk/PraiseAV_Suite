@@ -46,6 +46,7 @@ import {
 } from './types/church';
 import { ChurchSession, canRead, canWrite, churchInviteLink, clearChurchConnection, signOutChurch, churchRolesFromMembership } from './services/churchFirebase';
 import { useChurchCollection } from './services/useChurchCollection';
+import { servicesUsingSong } from './utils/serviceExport';
 import { SermonWorkspace } from './components/SermonWorkspace';
 import { parseChurchBackup } from './services/backup';
 import {readSermonDrafts,restoreSermonDrafts} from './services/sermonBackup';
@@ -179,6 +180,21 @@ function SuiteWorkspace({ session, onExit }: { session: ChurchSession; onExit: (
 
   const handleUpdatePlan = (updated: ServicePlan) => {
     setPlans((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
+  };
+
+  const canChange = (domain: 'plans' | 'songs') => !session || canWrite(session, domain);
+
+  const handleDeletePlan = (planId: string) => {
+    const remaining = plans.filter((p) => p.id !== planId);
+    setPlans(remaining);
+    if (activePlanId === planId) setActivePlanId(remaining[0]?.id || '');
+  };
+
+  const handleDeleteSong = (song: Song) => {
+    const used = servicesUsingSong(plans, song.id);
+    const note = used.length ? ` It is in ${used.length} service${used.length === 1 ? '' : 's'} (${used.slice(0, 3).map((p) => p.date).join(', ')}${used.length > 3 ? '…' : ''}); those keep its title but lose its words and chords.` : '';
+    if (!confirm(`Delete “${song.title}” from the song library for everyone in the church?${note} It can't be undone.`)) return;
+    setSongs((prev) => prev.filter((s) => s.id !== song.id));
   };
 
   const handleCreatePlan = (newPlan: ServicePlan) => {
@@ -538,6 +554,7 @@ function SuiteWorkspace({ session, onExit }: { session: ChurchSession; onExit: (
               onSelectPlan={setActivePlanId}
               onUpdatePlan={handleUpdatePlan}
               onCreatePlan={handleCreatePlan}
+              onDeletePlan={canChange('plans') ? handleDeletePlan : undefined}
               songs={songs}
               members={members}
               replyIndex={replyIndex}
@@ -561,6 +578,7 @@ function SuiteWorkspace({ session, onExit }: { session: ChurchSession; onExit: (
                 )
               }
               onAddSongToActiveService={handleAddSongToActiveService}
+              onDeleteSong={canChange('songs') ? handleDeleteSong : undefined}
             />
           )}
 

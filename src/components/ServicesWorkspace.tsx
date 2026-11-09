@@ -38,6 +38,7 @@ import type { ChurchSession } from '../services/churchFirebase';
 import { uploadCloudFile } from '../services/cloudFiles';
 import { cloudFileKind } from '../utils/cloudFiles';
 import { teamNoticeFor } from '../utils/teamNotices';
+import { servicesCsv } from '../utils/serviceExport';
 
 interface ServicesWorkspaceProps {
   plans: ServicePlan[];
@@ -45,6 +46,7 @@ interface ServicesWorkspaceProps {
   onSelectPlan: (id: string) => void;
   onUpdatePlan: (updated: ServicePlan) => void;
   onCreatePlan: (newPlan: ServicePlan) => void;
+  onDeletePlan?: (planId: string) => void;
   songs: Song[];
   members: Member[];
   replyIndex?: RotaReplyIndex;
@@ -60,6 +62,7 @@ export const ServicesWorkspace: React.FC<ServicesWorkspaceProps> = ({
   onSelectPlan,
   onUpdatePlan,
   onCreatePlan,
+  onDeletePlan,
   songs,
   members,
   replyIndex = {},
@@ -345,6 +348,32 @@ export const ServicesWorkspace: React.FC<ServicesWorkspaceProps> = ({
             >
               <Plus className="w-3.5 h-3.5" />
               New plan
+            </button>
+            {onDeletePlan && <button
+              type="button"
+              onClick={() => {
+                if (confirm(`Delete “${activePlan.title}” on ${activePlan.date}? This removes the plan, its order and its rota for everyone in the church. It can't be undone. A copy already sent to the booth stays in PraiseAV.`)) onDeletePlan(activePlan.id);
+              }}
+              className="suite-new-plan inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors whitespace-nowrap shrink-0"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              Delete service
+            </button>}
+            <button
+              type="button"
+              title="Download every service, one row per item, as a spreadsheet (CSV)"
+              onClick={() => {
+                const url = URL.createObjectURL(new Blob([servicesCsv(plans, songs)], { type: 'text/csv;charset=utf-8' }));
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = `services-${new Date().toLocaleDateString('en-CA')}.csv`;
+                link.click();
+                setTimeout(() => URL.revokeObjectURL(url), 1000);
+              }}
+              className="suite-new-plan inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors whitespace-nowrap shrink-0"
+            >
+              <Download className="w-3.5 h-3.5" />
+              Export all services
             </button>
           </div>
           <div className="suite-service-facts">

@@ -5,6 +5,7 @@ import {
   Plus,
   Search,
   Send,
+  Trash2,
 } from 'lucide-react';
 import { Song } from '../types/church';
 import { hasSongWords } from '../utils/praiseavService';
@@ -20,6 +21,7 @@ interface SongLibraryWorkspaceProps {
   songs: Song[];
   onAddSong: (song: Song) => void;
   onUpdateSong: (song: Song) => void;
+  onDeleteSong?: (song: Song) => void;
   onAddSongToActiveService: (song: Song, chosenKey: string) => void;
 }
 
@@ -27,6 +29,7 @@ export const SongLibraryWorkspace: React.FC<SongLibraryWorkspaceProps> = ({
   songs,
   onAddSong,
   onUpdateSong,
+  onDeleteSong,
   onAddSongToActiveService,
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
@@ -361,6 +364,14 @@ export const SongLibraryWorkspace: React.FC<SongLibraryWorkspaceProps> = ({
                 </div>
 
                 <div className="flex flex-wrap items-center gap-2">
+                  {onDeleteSong && <button
+                    type="button"
+                    onClick={() => onDeleteSong(selectedSong)}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 whitespace-nowrap shrink-0"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    Delete song
+                  </button>}
                   <button
                     type="button"
                     onClick={() => handleExportSongForPraiseAV(selectedSong)}
