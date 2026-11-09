@@ -3,7 +3,8 @@ import { collection, onSnapshot } from 'firebase/firestore';
 import { ChurchRole, ChurchSession, approveChurchAccess, boothConnectionCode, churchInviteLink, removeChurchAccess, updateChurchAccess } from '../services/churchFirebase';
 import { churchRules } from '../services/churchRules';
 import { checkChurchRulesHealth, ChurchRulesHealth } from '../services/churchRulesHealth';
-import { churchListing, setChurchListed } from '../services/churchDirectory';
+import { churchListing, renameChurch, setChurchListed } from '../services/churchDirectory';
+import { saveChurchConnection } from '../services/churchFirebase';
 
 const ROLES: ChurchRole[] = ['admin', 'office_staff', 'planner', 'preacher', 'worship_leader', 'av', 'musician', 'people', 'kids', 'finance', 'member', 'family'];
 const ROLE_NAMES: Record<ChurchRole, string> = { admin: 'Administrator', office_staff: 'Office staff', planner: 'Service planner', preacher: 'Preacher', worship_leader: 'Worship leader', av: 'AV operator', musician: 'Musician', people: 'People team', kids: 'Kids team', finance: 'Finance team', member: 'Member', family: 'Family' };
@@ -24,6 +25,17 @@ export function ChurchAdminPanel({ session, onClose }: { session: ChurchSession;
   const [listing, setListing] = useState<'listed' | 'unlisted' | 'missing' | null>(null);
   const [listTown, setListTown] = useState('');
   const [listNotice, setListNotice] = useState('');
+  const [newName, setNewName] = useState(session.connection.churchName);
+  const rename = async () => {
+    if (newName.trim().length < 3) { setListNotice('Type the new church name first.'); return; }
+    setBusy(true);
+    setListNotice('Renaming… a Google window may open: choose ' + session.connection.ownerEmail + '.');
+    try {
+      await renameChurch(session.connection, newName);
+      saveChurchConnection({ ...session.connection, churchName: newName.trim().slice(0, 100) });
+      location.reload();
+    } catch (failure) { setListNotice(failure instanceof Error ? failure.message : String(failure)); setBusy(false); }
+  };
   const listed = listing === null ? null : listing === 'listed';
   useEffect(() => {
     if (!session.owner) return;
@@ -95,6 +107,10 @@ export function ChurchAdminPanel({ session, onClose }: { session: ChurchSession;
           <p role="status">{listed === null ? 'Checking…' : listed ? 'On: members can find the church by name.' : 'Off: members need the church link.'}</p>
           {listing === 'missing' && <label className="block">Town or city (shown with the church name)<input className="w-full mt-1 p-2 border rounded bg-white text-slate-900" value={listTown} onChange={(event) => setListTown(event.target.value)} /></label>}
           <button type="button" disabled={busy || listed === null} className="px-3 py-2 rounded border disabled:opacity-50" onClick={() => void changeListing(!listed)}>{listed ? 'Stop listing the church' : 'List the church'}</button>
+          {listing !== null && listing !== 'missing' && <div className="flex flex-wrap items-end gap-2 pt-1">
+            <label className="block flex-1 min-w-[12rem]">Church name<input className="w-full mt-1 p-2 border rounded bg-white text-slate-900" value={newName} onChange={(event) => setNewName(event.target.value)} /></label>
+            <button type="button" disabled={busy || newName.trim() === session.connection.churchName} className="px-3 py-2 rounded border disabled:opacity-50" onClick={() => void rename()}>Rename the church</button>
+          </div>}
           {listNotice && <p role="status" className="font-medium">{listNotice}</p>}
         </div>}
         <div className="rounded-lg border border-emerald-400/60 p-3 text-sm space-y-2">

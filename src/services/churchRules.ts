@@ -90,6 +90,13 @@ service cloud.firestore {
           && request.resource.data.signIn.appId is string && request.resource.data.signIn.appId.size() < 100
           && request.resource.data.signIn.ownerEmailSha256 is string && request.resource.data.signIn.ownerEmailSha256.matches('^[0-9a-f]{64}$')
         ))
+      ) || (
+        // Renaming: the owner retires the old name (a new entry under the new name replaces it).
+        verified() && resource.data.ownerUid == request.auth.uid
+        && resource.data.status == 'ready'
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'signIn'])
+        && request.resource.data.status == 'cancelled'
+        && !('signIn' in request.resource.data)
       );
       allow delete: if false;
     }` : ''}

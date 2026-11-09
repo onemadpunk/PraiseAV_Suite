@@ -191,3 +191,23 @@ export async function setChurchListed(connection: ChurchConnection, listed: bool
   const signIn: DirectorySignIn = { apiKey, authDomain, projectId, appId, ownerEmailSha256: await emailSha256(connection.ownerEmail) };
   await updateDoc(doc(db, 'churchDirectory', entry.id), { signIn });
 }
+
+/** The name a listed church goes by now, so members' browsers pick up a rename. */
+export async function listedChurchName(projectId: string): Promise<string | null> {
+  const db = getFirestore(await directoryApp());
+  const found = await getDocs(query(collection(db, 'churchDirectory'), where('projectId', '==', projectId), where('status', '==', 'ready'), limit(1)));
+  return found.empty ? null : String(found.docs[0].data().churchName || '') || null;
+}
+
+/** The owner renames the church: a new entry under the new name, keeping the town and listing, then the old one is retired. */
+export async function renameChurch(connection: ChurchConnection, newName: string): Promise<void> {
+  const name = newName.trim().slice(0, 100);
+  const { db, entry } = await ownEntry(connection);
+  if (!entry) throw new Error('List the church first, then rename it.');
+  const old = entry.data() as DirectoryChurch;
+  if (directoryId(name, old.town) === entry.id) throw new Error('That is the same name. Choose a different name.');
+  const reservation = await reserveChurch(name, old.town, true);
+  await finishChurchRegistration(reservation.id, connection.config.projectId, connection.ownerEmail);
+  if (old.signIn) await updateDoc(doc(db, 'churchDirectory', reservation.id), { signIn: old.signIn });
+  await updateDoc(doc(db, 'churchDirectory', entry.id), { status: 'cancelled', signIn: deleteField() });
+}

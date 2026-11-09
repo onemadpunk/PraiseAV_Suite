@@ -44,9 +44,10 @@ import {
   SmallGroup,
   Song,
 } from './types/church';
-import { ChurchSession, canRead, canWrite, churchInviteLink, clearChurchConnection, signOutChurch, churchRolesFromMembership } from './services/churchFirebase';
+import { ChurchSession, canRead, canWrite, churchInviteLink, clearChurchConnection, saveChurchConnection, signOutChurch, churchRolesFromMembership } from './services/churchFirebase';
 import { useChurchCollection } from './services/useChurchCollection';
 import { servicesUsingSong } from './utils/serviceExport';
+import { listedChurchName } from './services/churchDirectory';
 import { SermonWorkspace } from './components/SermonWorkspace';
 import { parseChurchBackup } from './services/backup';
 import {readSermonDrafts,restoreSermonDrafts} from './services/sermonBackup';
@@ -644,6 +645,22 @@ function SuiteWorkspace({ session, onExit }: { session: ChurchSession; onExit: (
 export default function App() {
   const [session, setSession] = useState<ChurchSession | null>(null);
   const onReady = useCallback((ready: ChurchSession) => setSession(ready), []);
+  // A listed church may have been renamed: show the new name and remember it.
+  const projectId = session?.connection.config.projectId;
+  useEffect(() => {
+    if (!projectId) return;
+    let active = true;
+    listedChurchName(projectId).then((name) => {
+      if (!active || !name) return;
+      setSession((current) => {
+        if (!current || current.connection.churchName === name) return current;
+        const connection = { ...current.connection, churchName: name };
+        saveChurchConnection(connection);
+        return { ...current, connection };
+      });
+    }, () => { /* The church list is only on praiseav-suite.web.app; elsewhere keep the saved name. */ });
+    return () => { active = false; };
+  }, [projectId]);
   useEffect(() => {
     if (!session || session.owner) return;
     return onSnapshot(doc(session.db, 'memberships', session.user.uid), (snapshot) => {
