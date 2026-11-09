@@ -321,6 +321,7 @@ export function ChurchGate({ onReady }: { onReady: (session: ChurchSession) => v
                 <li>After signing in, open Church access → <strong>Set up the booth computer</strong>. Paste its code into PraiseAV on the church computer, and services sent from the Suite reach the booth by themselves.</li>
               </ol>
               <p className="text-xs">The project belongs to your church. Only the administrator needs Firebase Console; members do not.</p>
+              <p className="text-xs"><strong>Keep a backup.</strong> Your church owns its data, and PraiseAV keeps no copy. If something is deleted, only your own backup can bring it back. After setup, open Church access → <em>Back up your church</em> and click <em>Download everything</em> once a month.</p>
             </section>
             <label className="block text-sm">Church administrator’s Google email<input type="email" readOnly className="w-full mt-1 p-2 border border-slate-300 dark:border-slate-600 rounded bg-white dark:bg-slate-800 text-slate-900 dark:text-white" value={ownerEmail} /></label>
             <label className="block text-sm">Firebase Web app configuration<textarea className="w-full mt-1 p-2 border border-slate-300 dark:border-slate-600 rounded bg-white dark:bg-slate-800 text-slate-900 dark:text-white placeholder:text-slate-500 dark:placeholder:text-slate-400 font-mono text-xs" rows={6} value={configText} onChange={(e) => setConfigText(e.target.value)} placeholder="Paste the full Firebase code example here" /></label>

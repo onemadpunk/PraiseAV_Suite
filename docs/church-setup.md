@@ -50,7 +50,7 @@ See [roles and privacy](roles-and-privacy.md) before approving access to childre
 
 ## 4. Move older Suite data, if present
 
-Older versions kept data in one browser's localStorage. On that same browser, choose Open existing browser records. Download a church backup before clearing browser data. Sign in to the new church project, download a backup of any existing cloud records, then choose Restore backup file. Review the confirmation carefully: records with matching IDs are replaced and records absent from the backup are removed.
+Older versions kept data in one browser's localStorage. On that same browser, choose Open existing browser records. Download a backup before clearing browser data. Sign in to the new church project, download a backup of any existing cloud records, then choose Restore backup file. Review the confirmation carefully: records with matching IDs are replaced and records absent from the backup are removed.
 
 A browser backup is an ordinary unencrypted JSON file containing personal data. Store it in a location controlled by the church and delete unneeded copies. The Suite does not automatically migrate or upload older records.
 
@@ -75,6 +75,14 @@ The service file carries the order, the song words your church entered, and serv
 In a service plan, assign volunteers using member records with their email addresses. **Copy team message** makes a service summary with the order, song keys and a link into the Suite Band stand. **Email team** opens your email app with the assigned, non-declined volunteers in Bcc; review the draft before sending it. Volunteers sign in with their own approved church accounts. The Band stand shows assignments matching the signed-in email address and lets each musician choose a key and capo for their own tablet.
 
 For live following, send the updated `.praiseav` service file to PraiseAV Windows. When the file changes, the AV desk sees a notice and chooses when to load the new version; an active congregation slide is never replaced automatically. Turn on **Remote** in PraiseAV Windows. On the same church Wi-Fi, band members scan its QR code, request pairing, and the AV desk approves each tablet as **Band stand (read-only)**. The local band view shows the song chart and follows the current section when the operator advances slides. Its capo choice affects that tablet alone. This local connection uses no per-slide Firebase writes; it needs the Windows app and tablet on the same network. The remote page uses a certificate made on the church computer, so the tablet may need to trust that local address on first use.
+
+## Back up your church
+
+Your church owns its records, and PraiseAV keeps no copy. If something is deleted in your Firebase project, Firebase cannot bring it back on the free plan, and nobody at PraiseAV can either. An owner or administrator should open **Church access → Back up your church** (or use **Download everything (backup)** in the side menu) once a month and keep the file somewhere the church controls. The Suite shows when this computer last downloaded one, and reminds you after 30 days.
+
+The backup holds services, songs, private sermon drafts, the people list, rotas, kids check-ins, groups, room bookings, giving records, and who has access with which roles. It does not hold videos, music or other uploaded files, or people's own My details entries. It is an ordinary unencrypted JSON file with personal details, so keep it private.
+
+To bring records back, sign in as an owner or administrator and choose **Restore backup file**. The church's records are replaced by the backup's. If the backup lists people who no longer have access, the Suite asks whether to give them their access back with the same roles; nobody else's access is changed.
 
 ## Costs and support boundary
 

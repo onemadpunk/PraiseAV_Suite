@@ -24,7 +24,7 @@ The same role can be assigned to several people, including multiple preachers an
 
 Child pickup verification codes stay at the check-in desk. A public parent page uses a different pager reference. The Suite prepares the wording to copy into PraiseAV; it does not automatically show it on a screen. Staff must verify the private pickup code and the guardian before releasing a child.
 
-Giving records are an internal ledger, not a payment system, tax return, or verified Gift Aid claim. The potential Gift Aid figures are estimates for the church's finance team to review against declarations and current HMRC rules. Exported CSV and backup JSON files contain personal data and are not encrypted.
+Giving records are an internal ledger, not a payment system, tax return, or verified Gift Aid claim. The potential Gift Aid figures are estimates for the church's finance team to review against declarations and current HMRC rules. Exported CSV and backup JSON files contain personal data and are not encrypted. The church backup also lists each person's email address and roles so that lost access can be given back. See [Back up your church](church-setup.md#back-up-your-church).
 
 The static website stores only the chosen Firebase project connection details in localStorage. Church records are in that church's Firestore project. The live workspace opens only after church sign-in. Older browser records remain readable for backup but are not uploaded automatically.
 
