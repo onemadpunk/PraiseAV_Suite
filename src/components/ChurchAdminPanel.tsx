@@ -23,6 +23,7 @@ export function ChurchAdminPanel({ session, onClose }: { session: ChurchSession;
   const canManage = session.owner || session.roles.includes('admin');
   const [listing, setListing] = useState<'listed' | 'unlisted' | 'missing' | null>(null);
   const [listTown, setListTown] = useState('');
+  const [listNotice, setListNotice] = useState('');
   const listed = listing === null ? null : listing === 'listed';
   useEffect(() => {
     if (!session.owner) return;
@@ -31,13 +32,17 @@ export function ChurchAdminPanel({ session, onClose }: { session: ChurchSession;
     return () => { active = false; };
   }, [session.owner, session.connection]);
   const changeListing = async (next: boolean) => {
-    if (next && listing === 'missing' && listTown.trim().length < 2) { setNotice('Enter the church’s town or city first.'); return; }
+    if (next && listing === 'missing' && listTown.trim().length < 2) { setListNotice('Type the church’s town or city in the box above first.'); return; }
+    setListNotice(next ? 'Listing… a Google window may open: choose ' + session.connection.ownerEmail + '.' : 'Removing the listing…');
     setBusy(true);
     try {
       await setChurchListed(session.connection, next, listTown);
       setListing(next ? 'listed' : 'unlisted');
-      setNotice(next ? 'Your church is listed. Members can now find it by name and town in the Suite and sign in.' : 'Your church is no longer listed. Members need the church link to sign in.');
-    } catch (failure) { setNotice(failure instanceof Error ? failure.message : String(failure)); }
+      setListNotice(next ? 'Your church is listed. Members can now find it by name and town in the Suite and sign in.' : 'Your church is no longer listed. Members need the church link to sign in.');
+    } catch (failure) {
+      const message = failure instanceof Error ? failure.message : String(failure);
+      setListNotice(/popup-blocked/.test(message) ? 'Your browser blocked the Google window. Allow pop-ups for this site, then click again.' : /popup-closed|cancelled-popup/.test(message) ? 'The Google window was closed before signing in. Click again to retry.' : message);
+    }
     finally { setBusy(false); }
   };
 
@@ -90,6 +95,7 @@ export function ChurchAdminPanel({ session, onClose }: { session: ChurchSession;
           <p role="status">{listed === null ? 'Checking…' : listed ? 'On: members can find the church by name.' : 'Off: members need the church link.'}</p>
           {listing === 'missing' && <label className="block">Town or city (shown with the church name)<input className="w-full mt-1 p-2 border rounded bg-white text-slate-900" value={listTown} onChange={(event) => setListTown(event.target.value)} /></label>}
           <button type="button" disabled={busy || listed === null} className="px-3 py-2 rounded border disabled:opacity-50" onClick={() => void changeListing(!listed)}>{listed ? 'Stop listing the church' : 'List the church'}</button>
+          {listNotice && <p role="status" className="font-medium">{listNotice}</p>}
         </div>}
         <div className="rounded-lg border border-emerald-400/60 p-3 text-sm space-y-2">
           <strong>Set up the booth computer</strong>

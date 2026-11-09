@@ -79,14 +79,14 @@ export async function refreshSavedReservation(): Promise<boolean> {
   return active;
 }
 
-export async function reserveChurch(churchName: string, town: string): Promise<{ id: string; ownerEmail: string }> {
+export async function reserveChurch(churchName: string, town: string, useSignedIn = false): Promise<{ id: string; ownerEmail: string }> {
   const id = directoryId(churchName, town);
   const app = await directoryApp();
   const auth = getAuth(app);
   await auth.authStateReady();
   const provider = new GoogleAuthProvider();
   provider.setCustomParameters({ prompt: 'select_account' });
-  const user = (await signInWithPopup(auth, provider)).user;
+  const user = useSignedIn && auth.currentUser ? auth.currentUser : (await signInWithPopup(auth, provider)).user;
   if (!user.emailVerified || !user.email) throw new Error('Verify your Google account email before registering a church.');
   const db = getFirestore(app);
   const reference = doc(db, 'churchDirectory', id);
@@ -181,7 +181,7 @@ export async function setChurchListed(connection: ChurchConnection, listed: bool
   let { db, entry } = await ownEntry(connection);
   if (!entry && listed) {
     // A church set up before the list existed: register its name and town now, as setup does.
-    const reservation = await reserveChurch(connection.churchName, town);
+    const reservation = await reserveChurch(connection.churchName, town, true);
     await finishChurchRegistration(reservation.id, connection.config.projectId, connection.ownerEmail);
     ({ db, entry } = await ownEntry(connection));
   }
