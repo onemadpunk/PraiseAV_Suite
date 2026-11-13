@@ -13,7 +13,7 @@ The church owns its Firebase project and chooses who can use it. The Suite's gen
 | People | People directory, including pastoral notes | People directory |
 | Kids | Child check-ins, pickup codes and medical notes | Child check-ins |
 | Finance | Giving records | Giving records |
-| Member | Groups and room bookings | None |
+| Member | Groups, shared group materials, rooms and room bookings | None |
 | Family | Opt-in church directory | Own private profile and directory choices |
 
 A person may have more than one role. They can sign in with Google or with an email address and password. Email accounts must verify the address before entering their own profile or requesting shared church access. A link to the church does not grant record access; the owner or an admin approves each request. A verified person may enter their own name, contact number and household details before that approval. Other members cannot read those profiles. After removal, the server rejects new reads and writes to shared church records. Previously downloaded files or records already displayed on a device cannot be withdrawn remotely.
@@ -24,7 +24,7 @@ The same role can be assigned to several people, including multiple preachers an
 
 Child pickup verification codes stay at the check-in desk. A public parent page uses a different pager reference. The Suite prepares the wording to copy into PraiseAV; it does not automatically show it on a screen. Staff must verify the private pickup code and the guardian before releasing a child.
 
-Giving records are an internal ledger, not a payment system, tax return, or verified Gift Aid claim. The potential Gift Aid figures are estimates for the church's finance team to review against declarations and current HMRC rules. Exported CSV and backup JSON files contain personal data and are not encrypted. The church backup also lists each person's email address and roles so that lost access can be given back. See [Back up your church](church-setup.md#back-up-your-church).
+Giving records are an internal record, not a payment system or tax return, and the Suite does not handle Gift Aid. Collections are recorded as totals; naming a giver is optional and names are hidden on screen and in downloads unless finance chooses to show them. Exported CSV and backup JSON files contain personal data and are not encrypted. The church backup also lists each person's email address and roles so that lost access can be given back. See [Back up your church](church-setup.md#back-up-your-church).
 
 The static website stores only the chosen Firebase project connection details in localStorage. Church records are in that church's Firestore project. The live workspace opens only after church sign-in. Older browser records remain readable for backup but are not uploaded automatically.
 

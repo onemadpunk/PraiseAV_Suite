@@ -1,599 +1,529 @@
-import React, { useState } from 'react';
+import React, { Dispatch, SetStateAction, useMemo, useState } from 'react';
+import { Calendar, DoorOpen, Download, HeartHandshake, Mail, Plus, Trash2, Users } from 'lucide-react';
+import { DonationRecord, GroupMaterial, Member, RoomBooking, SmallGroup } from '../types/church';
 import {
-  Calendar,
-  Download,
-  HeartHandshake,
-  Plus,
-  Users,
-} from 'lucide-react';
-import { DonationRecord, RoomBooking, SmallGroup } from '../types/church';
-import { csvCell } from '../utils/csv';
+  COLLECTION_SUGGESTIONS, FUND_SUGGESTIONS, METHOD_OPTIONS, bookingProblem, churchRooms, givingCsv,
+  givingSource, givingSummary, groupEmailLink, groupMemberCount, groupPeople, materialEmailText, money,
+  newRoom, roomBookingsOnly, safeLink,
+} from '../utils/groupsRoomsGiving';
 
 interface GroupsAndGivingWorkspaceProps {
   smallGroups: SmallGroup[];
-  onAddSmallGroup: (sg: SmallGroup) => void;
+  setSmallGroups: Dispatch<SetStateAction<SmallGroup[]>>;
   roomBookings: RoomBooking[];
-  onAddRoomBooking: (rb: RoomBooking) => void;
+  setRoomBookings: Dispatch<SetStateAction<RoomBooking[]>>;
   donations: DonationRecord[];
-  onAddDonation: (don: DonationRecord) => void;
+  setDonations: Dispatch<SetStateAction<DonationRecord[]>>;
+  /** People records. Empty unless this person can read People (admins and the People role). */
+  members: Member[];
   canSeeGroups: boolean;
   canSeeFinance: boolean;
   canEditGroups: boolean;
   canEditFinance: boolean;
 }
 
-export const GroupsAndGivingWorkspace: React.FC<GroupsAndGivingWorkspaceProps> = ({
-  smallGroups,
-  onAddSmallGroup,
-  roomBookings,
-  onAddRoomBooking,
-  donations,
-  onAddDonation,
-  canSeeGroups,
-  canSeeFinance,
-  canEditGroups,
-  canEditFinance,
-}) => {
-  const [sectionView, setSectionView] = useState<'groups-rooms' | 'giving'>(canSeeGroups ? 'groups-rooms' : 'giving');
-  const [showAddGroup, setShowAddGroup] = useState(false);
-  const [showAddBooking, setShowAddBooking] = useState(false);
-  const [showAddDonation, setShowAddDonation] = useState(false);
+type Section = 'groups' | 'rooms' | 'giving';
 
-  // Small Group Form
-  const [groupName, setGroupName] = useState('');
-  const [groupCategory, setGroupCategory] = useState<SmallGroup['category']>('Home Group');
-  const [groupLeader, setGroupLeader] = useState('');
-  const [groupDay, setGroupDay] = useState('Wednesday');
-  const [groupTime, setGroupTime] = useState('19:30');
-  const [groupLocation, setGroupLocation] = useState('');
-  const [groupStudy, setGroupStudy] = useState('1 Peter Study Guide');
+const input = 'px-3 py-1.5 text-xs bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 border border-slate-300 dark:border-slate-700 rounded-lg';
+const card = 'bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden';
+const primary = 'inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-indigo-600 rounded-lg hover:bg-indigo-500';
+const soft = 'inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/50 rounded-lg';
+const plain = 'inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-200 border border-slate-300 dark:border-slate-700 rounded-lg';
+const today = () => new Date().toISOString().slice(0, 10);
 
-  // Room Booking Form
-  const [roomName, setRoomName] = useState<RoomBooking['roomName']>('Main Sanctuary');
-  const [eventTitle, setEventTitle] = useState('');
-  const [eventDate, setEventDate] = useState('2026-11-12');
-  const [startTime, setStartTime] = useState('19:00');
-  const [endTime, setEndTime] = useState('21:00');
-  const [organizer, setOrganizer] = useState('Hannah Vance');
-  const [avRequired, setAvRequired] = useState(true);
-  const [setupNotes, setSetupNotes] = useState('');
-  const [bookingError, setBookingError] = useState<string | null>(null);
-
-  // Donation Form
-  const [donorName, setDonorName] = useState('');
-  const [amount, setAmount] = useState<number>(100);
-  const [fund, setFund] = useState<DonationRecord['fund']>('General Ministry Fund');
-  const [method, setMethod] = useState<DonationRecord['method']>('Standing Order (Bank)');
-  const [giftAidEligible, setGiftAidEligible] = useState(true);
-  const [donDate, setDonDate] = useState('2026-11-01');
-
-  const totalDonations = donations.reduce((sum, d) => sum + d.amount, 0);
-  const giftAidReclaimable = donations
-    .filter((d) => d.giftAidEligible)
-    .reduce((sum, d) => sum + d.amount * 0.25, 0);
-
-  const handleCreateGroup = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!groupName.trim()) return;
-    onAddSmallGroup({
-      id: 'sg-' + crypto.randomUUID(),
-      name: groupName.trim(),
-      category: groupCategory,
-      leaderName: groupLeader.trim() || 'Ministry Leader',
-      meetingDay: groupDay,
-      meetingTime: groupTime,
-      location: groupLocation.trim() || 'Church Campus',
-      currentMembers: 8,
-      maxCapacity: 16,
-      currentStudy: groupStudy.trim(),
-      active: true,
-    });
-    setGroupName('');
-    setShowAddGroup(false);
-  };
-
-  const handleCreateBooking = (e: React.FormEvent) => {
-    e.preventDefault();
-    setBookingError(null);
-    if (!eventTitle.trim()) return;
-
-    // Check for room collision
-    const conflict = roomBookings.find(
-      (b) =>
-        b.roomName === roomName &&
-        b.date === eventDate &&
-        !(endTime <= b.startTime || startTime >= b.endTime)
-    );
-    if (conflict) {
-      setBookingError(
-        `Room Conflict: ${roomName} is already booked on ${eventDate} (${conflict.startTime}–${conflict.endTime}) for "${conflict.eventTitle}".`
-      );
-      return;
-    }
-
-    onAddRoomBooking({
-      id: 'rb-' + crypto.randomUUID(),
-      roomName,
-      eventTitle: eventTitle.trim(),
-      date: eventDate,
-      startTime,
-      endTime,
-      organizer: organizer.trim() || 'Church Office',
-      avRequired,
-      setupNotes: setupNotes.trim() || 'Standard room configuration.',
-    });
-    setEventTitle('');
-    setShowAddBooking(false);
-  };
-
-  const handleCreateDonation = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!donorName.trim() || amount <= 0) return;
-    onAddDonation({
-      id: 'don-' + crypto.randomUUID(),
-      donorName: donorName.trim(),
-      household: donorName.trim(),
-      amount,
-      fund,
-      method,
-      giftAidEligible,
-      date: donDate,
-      reference: `REC-${Date.now().toString().slice(-5)}`,
-    });
-    setDonorName('');
-    setShowAddDonation(false);
-  };
-
-  const handleExportGiftAidCSV = () => {
-    const headers = [
-      'Date',
-      'Donor / Household',
-      'Fund',
-      'Method',
-      'Amount (GBP)',
-      'Gift Aid Eligible',
-      '25% Tax Reclaim (GBP)',
-      'Reference',
-    ];
-    const rows = donations.map((d) => [
-      d.date,
-      d.donorName,
-      d.fund,
-      d.method,
-      d.amount.toFixed(2),
-      d.giftAidEligible ? 'YES' : 'NO',
-      d.giftAidEligible ? (d.amount * 0.25).toFixed(2) : '0.00',
-      d.reference,
-    ]);
-    const csv = [headers.map(csvCell).join(','), ...rows.map((r) => r.map(csvCell).join(','))].join('\n');
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'praiseav-suite-giving-review.csv';
-    a.click();
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
-  };
-
+export const GroupsAndGivingWorkspace: React.FC<GroupsAndGivingWorkspaceProps> = (props) => {
+  const { canSeeGroups, canSeeFinance } = props;
+  const [section, setSection] = useState<Section>(canSeeGroups ? 'groups' : 'giving');
+  const tabs: Array<[Section, string, boolean]> = [
+    ['groups', 'Small groups', canSeeGroups], ['rooms', 'Rooms', canSeeGroups], ['giving', 'Giving', canSeeFinance],
+  ];
   return (
     <div className="space-y-6">
       <div className="suite-page-header flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-5 border-b border-slate-200 dark:border-slate-800">
         <div>
           <div className="suite-eyebrow">Church life / Administration</div>
-          <h1 className="text-xl font-bold tracking-tight text-slate-900 dark:text-slate-100">
-            Groups, rooms & giving
-          </h1>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-            Coordinate groups and rooms. Finance staff can record giving for review.
-          </p>
+          <h1 className="text-xl font-bold tracking-tight text-slate-900 dark:text-slate-100">Groups, rooms & giving</h1>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Set up small groups and rooms, share materials, and record what came in.</p>
         </div>
+        <div className="flex items-center gap-1 p-1 bg-slate-100 dark:bg-slate-800 rounded-lg" role="tablist">
+          {tabs.filter(([, , show]) => show).map(([id, label]) => (
+            <button key={id} type="button" role="tab" aria-selected={section === id} onClick={() => setSection(id)}
+              className={`px-3.5 py-1.5 text-xs font-medium rounded-md whitespace-nowrap ${section === id ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 shadow-xs' : 'text-slate-600 dark:text-slate-400'}`}>
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
+      {section === 'groups' && canSeeGroups && <GroupsSection {...props} />}
+      {section === 'rooms' && canSeeGroups && <RoomsSection {...props} />}
+      {section === 'giving' && canSeeFinance && <GivingSection {...props} />}
+      {!canSeeGroups && !canSeeFinance && <p>This area is restricted.</p>}
+    </div>
+  );
+};
 
-        <div className="flex items-center gap-1 p-1 bg-slate-100 dark:bg-slate-800 rounded-lg">
-          {canSeeGroups && <button
-            type="button"
-            onClick={() => setSectionView('groups-rooms')}
-            className={`px-3.5 py-1.5 text-xs font-medium rounded-md transition-colors whitespace-nowrap shrink-0 ${
-              sectionView === 'groups-rooms'
-                ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 shadow-xs'
-                : 'text-slate-600 dark:text-slate-400'
-            }`}
-          >
-            Small Groups & Room Calendar
-          </button>}
-          {canSeeFinance && <button
-            type="button"
-            onClick={() => setSectionView('giving')}
-            className={`px-3.5 py-1.5 text-xs font-medium rounded-md transition-colors whitespace-nowrap shrink-0 ${
-              sectionView === 'giving'
-                ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 shadow-xs'
-                : 'text-slate-600 dark:text-slate-400'
-            }`}
-          >
-            Giving Records
-          </button>}
+// ---------------- Small groups ----------------
+
+const GroupsSection: React.FC<GroupsAndGivingWorkspaceProps> = ({ smallGroups, setSmallGroups, members, canEditGroups }) => {
+  const [showAdd, setShowAdd] = useState(false);
+  const [openId, setOpenId] = useState<string | null>(null);
+  const [name, setName] = useState('');
+  const [category, setCategory] = useState('Home Group');
+  const [leader, setLeader] = useState('');
+  const [day, setDay] = useState('Wednesday');
+  const [time, setTime] = useState('19:30');
+  const [location, setLocation] = useState('');
+  const [study, setStudy] = useState('');
+
+  const update = (id: string, change: (g: SmallGroup) => SmallGroup) =>
+    setSmallGroups((prev) => prev.map((g) => (g.id === id ? change(g) : g)));
+
+  const create = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!name.trim()) return;
+    const id = 'sg-' + crypto.randomUUID();
+    setSmallGroups((prev) => [{
+      id, name: name.trim(), category, leaderName: leader.trim(), meetingDay: day, meetingTime: time,
+      location: location.trim(), currentMembers: 0, maxCapacity: 0, currentStudy: study.trim(), active: true,
+      memberIds: [], materials: [],
+    }, ...prev]);
+    setName(''); setLeader(''); setLocation(''); setStudy('');
+    setShowAdd(false); setOpenId(id);
+  };
+
+  return (
+    <div className={card}>
+      <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-200 dark:border-slate-800">
+        <div>
+          <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2"><Users className="w-4 h-4" /> Small groups ({smallGroups.length})</h2>
+          <p className="text-xs text-slate-500 dark:text-slate-400">Home groups, Bible studies and courses. Open a group to choose its members and share materials.</p>
+        </div>
+        {canEditGroups && <button type="button" className={soft} onClick={() => setShowAdd(!showAdd)}><Plus className="w-3.5 h-3.5" /> New group</button>}
+      </div>
+
+      {canEditGroups && showAdd && (
+        <form onSubmit={create} className="p-4 bg-slate-50 dark:bg-slate-950 border-b border-slate-200 dark:border-slate-800 space-y-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <label className="text-xs space-y-1"><span className="block font-medium">Group name</span>
+              <input required className={input + ' w-full'} placeholder="e.g. Tuesday home group" value={name} onChange={(e) => setName(e.target.value)} /></label>
+            <label className="text-xs space-y-1"><span className="block font-medium">Type of group</span>
+              <input className={input + ' w-full'} list="sg-categories" value={category} onChange={(e) => setCategory(e.target.value)} /></label>
+            <label className="text-xs space-y-1"><span className="block font-medium">Leader(s)</span>
+              <input className={input + ' w-full'} value={leader} onChange={(e) => setLeader(e.target.value)} /></label>
+            <label className="text-xs space-y-1"><span className="block font-medium">Where it meets</span>
+              <input className={input + ' w-full'} placeholder="e.g. 12 High Street, or Church hall" value={location} onChange={(e) => setLocation(e.target.value)} /></label>
+            <label className="text-xs space-y-1"><span className="block font-medium">Day</span>
+              <select className={input + ' w-full'} value={day} onChange={(e) => setDay(e.target.value)}>
+                {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'].map((d) => <option key={d}>{d}</option>)}
+              </select></label>
+            <label className="text-xs space-y-1"><span className="block font-medium">Time</span>
+              <input type="time" className={input + ' w-full'} value={time} onChange={(e) => setTime(e.target.value)} /></label>
+            <label className="text-xs space-y-1 sm:col-span-2"><span className="block font-medium">Current study (optional)</span>
+              <input className={input + ' w-full'} value={study} onChange={(e) => setStudy(e.target.value)} /></label>
+          </div>
+          <datalist id="sg-categories">{['Home Group', 'Bible Study', 'Youth & Young Adults', 'Discipleship Course', 'Prayer Group'].map((c) => <option key={c} value={c} />)}</datalist>
+          <div className="flex justify-end"><button type="submit" className={primary}>Create group</button></div>
+        </form>
+      )}
+
+      {!smallGroups.length && <p className="p-5 text-xs text-slate-500">No groups yet.{canEditGroups ? ' Press "New group" to add the first one.' : ''}</p>}
+      <div className="divide-y divide-slate-200 dark:divide-slate-800">
+        {smallGroups.map((g) => (
+          <div key={g.id} className="p-4 space-y-2">
+            <button type="button" className="w-full text-left" aria-expanded={openId === g.id} onClick={() => setOpenId(openId === g.id ? null : g.id)}>
+              <div className="flex items-center justify-between gap-2">
+                <span className="font-semibold text-sm text-slate-900 dark:text-slate-100">{g.name}</span>
+                <span className="text-xs text-slate-500 tabular-nums">{groupMemberCount(g)} {groupMemberCount(g) === 1 ? 'person' : 'people'} · {(g.materials || []).length} shared</span>
+              </div>
+              <div className="text-xs text-slate-500 dark:text-slate-400">
+                {[g.category, g.meetingDay && `${g.meetingDay}s at ${g.meetingTime}`, g.leaderName && `Led by ${g.leaderName}`, g.location].filter(Boolean).join(' · ')}
+              </div>
+              {g.currentStudy && <div className="text-xs text-slate-600 dark:text-slate-300">Study: <strong>{g.currentStudy}</strong></div>}
+            </button>
+            {openId === g.id && <GroupDetail group={g} members={members} canEdit={canEditGroups}
+              onChange={(change) => update(g.id, change)}
+              onDelete={() => { if (confirm(`Delete the group "${g.name}"? Its shared materials are deleted too.`)) setSmallGroups((prev) => prev.filter((x) => x.id !== g.id)); }} />}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+const GroupDetail: React.FC<{ group: SmallGroup; members: Member[]; canEdit: boolean; onChange: (c: (g: SmallGroup) => SmallGroup) => void; onDelete: () => void }> = ({ group, members, canEdit, onChange, onDelete }) => {
+  const [title, setTitle] = useState('');
+  const [link, setLink] = useState('');
+  const [note, setNote] = useState('');
+  const [error, setError] = useState('');
+  const [picking, setPicking] = useState(false);
+  const { people, noEmail } = groupPeople(group, members);
+  const ids = new Set(group.memberIds || []);
+  const materials = group.materials || [];
+  const canEmail = canEdit && members.length > 0;
+
+  const openEmail = (subject: string, body: string) => {
+    const href = groupEmailLink(group, members, subject, body);
+    if (!href) { setError('Nobody in this group has an email address in People yet.'); return; }
+    window.location.href = href;
+  };
+
+  const share = (e: React.SyntheticEvent, sendEmail: boolean) => {
+    e.preventDefault();
+    setError('');
+    if (!title.trim()) { setError('Give it a title, e.g. "Week 3 study sheet".'); return; }
+    const cleanLink = safeLink(link);
+    if (link.trim() && !cleanLink) { setError('That link does not look like a web address.'); return; }
+    const material: GroupMaterial = { id: 'mat-' + crypto.randomUUID(), title: title.trim().slice(0, 200), link: cleanLink, note: note.trim().slice(0, 2000), sharedAt: today() };
+    onChange((g) => ({ ...g, materials: [material, ...(g.materials || [])].slice(0, 100) }));
+    setTitle(''); setLink(''); setNote('');
+    if (sendEmail) { const text = materialEmailText(group, material); openEmail(text.subject, text.body); }
+  };
+
+  const toggle = (id: string) => onChange((g) => {
+    const next = new Set(g.memberIds || []);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    return { ...g, memberIds: [...next], currentMembers: next.size };
+  });
+
+  return (
+    <div className="mt-2 p-3 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-4 text-xs">
+      {/* Members */}
+      <section className="space-y-2">
+        <div className="flex items-center justify-between gap-2">
+          <h3 className="font-semibold text-slate-900 dark:text-slate-100">Who is in this group</h3>
+          {canEdit && members.length > 0 && <button type="button" className={plain} onClick={() => setPicking(!picking)}>{picking ? 'Done' : 'Choose people'}</button>}
+        </div>
+        {members.length === 0
+          ? <p className="text-slate-500">{groupMemberCount(group)} {groupMemberCount(group) === 1 ? 'person' : 'people'}.{canEdit ? ' Add people in "People & rotas" first, then choose them here.' : ''}</p>
+          : picking
+            ? <div className="grid grid-cols-1 sm:grid-cols-2 gap-1 max-h-60 overflow-y-auto">
+                {[...members].sort((a, b) => a.fullName.localeCompare(b.fullName)).map((m) => (
+                  <label key={m.id} className="inline-flex items-center gap-2"><input type="checkbox" checked={ids.has(m.id)} onChange={() => toggle(m.id)} />{m.fullName}{!m.email && <span className="text-slate-400">(no email)</span>}</label>
+                ))}
+              </div>
+            : people.length ? <p className="text-slate-700 dark:text-slate-300">{people.map((m) => m.fullName).join(', ')}</p> : <p className="text-slate-500">Nobody chosen yet.</p>}
+        {canEmail && people.length > 0 && <div className="flex flex-wrap items-center gap-2">
+          <button type="button" className={plain} onClick={() => openEmail(group.name, `Hello ${group.name},\n\n`)}><Mail className="w-3.5 h-3.5" /> Email the group</button>
+          {noEmail > 0 && <span className="text-amber-700 dark:text-amber-400">{noEmail} {noEmail === 1 ? 'person has' : 'people have'} no email address in People.</span>}
+        </div>}
+      </section>
+
+      {/* Materials */}
+      <section className="space-y-2">
+        <h3 className="font-semibold text-slate-900 dark:text-slate-100">Shared with the group</h3>
+        {canEdit && <form onSubmit={(e) => share(e, false)} className="space-y-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <input className={input} placeholder='Title, e.g. "Week 3 study sheet"' value={title} onChange={(e) => setTitle(e.target.value)} />
+            <input className={input} placeholder="Link (optional), e.g. a Google Drive file" value={link} onChange={(e) => setLink(e.target.value)} />
+          </div>
+          <textarea className={input + ' w-full'} rows={2} placeholder="Note (optional)" value={note} onChange={(e) => setNote(e.target.value)} />
+          <div className="flex flex-wrap gap-2 justify-end">
+            <button type="submit" className={plain}>Share in the Suite</button>
+            {canEmail && <button type="button" className={primary} onClick={(e) => share(e, true)}><Mail className="w-3.5 h-3.5" /> Share and email the group</button>}
+          </div>
+          <p className="text-slate-500">Emails open in your own email app, with the group in BCC so they don't see each other's addresses. For files, put them in Google Drive (or similar) and paste the share link.</p>
+        </form>}
+        {error && <p role="alert" className="text-red-700 dark:text-red-300">{error}</p>}
+        {!materials.length && <p className="text-slate-500">Nothing shared yet.</p>}
+        <ul className="space-y-2">
+          {materials.map((m) => (
+            <li key={m.id} className="p-2 rounded border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
+              <div className="flex items-start justify-between gap-2">
+                <div>
+                  <div className="font-semibold text-slate-900 dark:text-slate-100">{m.link ? <a className="underline text-indigo-600 dark:text-indigo-400" href={m.link} target="_blank" rel="noopener noreferrer">{m.title}</a> : m.title}</div>
+                  <div className="text-slate-500">Shared {m.sharedAt}</div>
+                  {m.note && <p className="whitespace-pre-wrap text-slate-700 dark:text-slate-300 mt-1">{m.note}</p>}
+                </div>
+                {canEdit && <div className="flex gap-1 shrink-0">
+                  {canEmail && <button type="button" aria-label={`Email "${m.title}" to the group`} title="Email to the group" className="p-1" onClick={() => { const t = materialEmailText(group, m); openEmail(t.subject, t.body); }}><Mail className="w-3.5 h-3.5" /></button>}
+                  <button type="button" aria-label={`Remove "${m.title}"`} title="Remove" className="p-1 text-red-600" onClick={() => onChange((g) => ({ ...g, materials: (g.materials || []).filter((x) => x.id !== m.id) }))}><Trash2 className="w-3.5 h-3.5" /></button>
+                </div>}
+              </div>
+            </li>
+          ))}
+        </ul>
+      </section>
+      {canEdit && <div className="flex justify-end"><button type="button" className="text-red-600 underline" onClick={onDelete}>Delete this group</button></div>}
+    </div>
+  );
+};
+
+// ---------------- Rooms ----------------
+
+const RoomsSection: React.FC<GroupsAndGivingWorkspaceProps> = ({ roomBookings, setRoomBookings, canEditGroups }) => {
+  const rooms = useMemo(() => churchRooms(roomBookings), [roomBookings]);
+  const bookings = useMemo(() => roomBookingsOnly(roomBookings), [roomBookings]);
+  const [roomName, setRoomName] = useState('');
+  const [roomNotes, setRoomNotes] = useState('');
+  const [showBook, setShowBook] = useState(false);
+  const [showPast, setShowPast] = useState(false);
+  const [room, setRoom] = useState('');
+  const [title, setTitle] = useState('');
+  const [date, setDate] = useState(today());
+  const [start, setStart] = useState('19:00');
+  const [end, setEnd] = useState('21:00');
+  const [organizer, setOrganizer] = useState('');
+  const [av, setAv] = useState(false);
+  const [notes, setNotes] = useState('');
+  const [error, setError] = useState('');
+
+  const addRoom = (e: React.FormEvent) => {
+    e.preventDefault();
+    const nameValue = roomName.trim();
+    if (!nameValue) return;
+    if (rooms.some((r) => r.roomName.toLowerCase() === nameValue.toLowerCase())) { setError(`"${nameValue}" is already set up.`); return; }
+    setError('');
+    setRoomBookings((prev) => [...prev, newRoom(nameValue, roomNotes)]);
+    setRoomName(''); setRoomNotes('');
+  };
+
+  const book = (e: React.FormEvent) => {
+    e.preventDefault();
+    const chosen = room || rooms[0]?.roomName || '';
+    if (!title.trim()) { setError('Say what the booking is for.'); return; }
+    const problem = bookingProblem(roomBookings, { roomName: chosen, date, startTime: start, endTime: end });
+    if (problem) { setError(problem); return; }
+    setError('');
+    setRoomBookings((prev) => [...prev, {
+      id: 'rb-' + crypto.randomUUID(), kind: 'booking', roomName: chosen, eventTitle: title.trim().slice(0, 200),
+      date, startTime: start, endTime: end, organizer: organizer.trim().slice(0, 100), avRequired: av, setupNotes: notes.trim().slice(0, 500),
+    }]);
+    setTitle(''); setNotes(''); setShowBook(false);
+  };
+
+  const now = today();
+  const shown = bookings.filter((b) => showPast || b.date >= now);
+
+  return (
+    <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+      <div className={card + ' lg:col-span-5'}>
+        <div className="px-5 py-3.5 border-b border-slate-200 dark:border-slate-800">
+          <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2"><DoorOpen className="w-4 h-4" /> Church rooms ({rooms.length})</h2>
+          <p className="text-xs text-slate-500 dark:text-slate-400">{canEditGroups ? 'Add each room people can book: the hall, the vestry, the kitchen and so on.' : 'The rooms that can be booked.'}</p>
+        </div>
+        {canEditGroups && <form onSubmit={addRoom} className="p-4 bg-slate-50 dark:bg-slate-950 border-b border-slate-200 dark:border-slate-800 space-y-2">
+          <input className={input + ' w-full'} placeholder="Room name, e.g. Church hall" value={roomName} onChange={(e) => setRoomName(e.target.value)} aria-label="Room name" />
+          <input className={input + ' w-full'} placeholder="About the room (optional), e.g. seats 40, has a TV" value={roomNotes} onChange={(e) => setRoomNotes(e.target.value)} aria-label="About the room" />
+          <div className="flex justify-end"><button type="submit" className={primary}><Plus className="w-3.5 h-3.5" /> Add room</button></div>
+        </form>}
+        {!rooms.length && <p className="p-5 text-xs text-slate-500">No rooms set up yet.</p>}
+        <ul className="divide-y divide-slate-200 dark:divide-slate-800">
+          {rooms.map((r) => (
+            <li key={r.id} className="px-5 py-3 flex items-start justify-between gap-2 text-xs">
+              <div><div className="font-semibold text-sm text-slate-900 dark:text-slate-100">{r.roomName}</div>{r.setupNotes && <div className="text-slate-500">{r.setupNotes}</div>}</div>
+              {canEditGroups && <button type="button" aria-label={`Remove ${r.roomName}`} className="p-1 text-red-600"
+                onClick={() => { if (confirm(`Remove "${r.roomName}" from the room list? Existing bookings stay.`)) setRoomBookings((prev) => prev.filter((x) => x.id !== r.id)); }}><Trash2 className="w-3.5 h-3.5" /></button>}
+            </li>
+          ))}
+        </ul>
+      </div>
+
+      <div className={card + ' lg:col-span-7'}>
+        <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-200 dark:border-slate-800">
+          <div>
+            <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2"><Calendar className="w-4 h-4" /> Room bookings</h2>
+            <p className="text-xs text-slate-500 dark:text-slate-400">The Suite stops a room being booked twice at the same time.</p>
+          </div>
+          {canEditGroups && rooms.length > 0 && <button type="button" className={soft} onClick={() => setShowBook(!showBook)}><Plus className="w-3.5 h-3.5" /> Book a room</button>}
+        </div>
+        {error && <p role="alert" className="mx-4 mt-3 p-2.5 bg-red-50 dark:bg-red-950/70 text-red-700 dark:text-red-300 text-xs rounded-lg border border-red-200 dark:border-red-800">{error}</p>}
+        {canEditGroups && !rooms.length && <p className="p-5 text-xs text-slate-500">Add your church's rooms on the left first, then you can book them here.</p>}
+        {canEditGroups && showBook && rooms.length > 0 && (
+          <form onSubmit={book} className="p-4 bg-slate-50 dark:bg-slate-950 border-b border-slate-200 dark:border-slate-800 space-y-3 text-xs">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <label className="space-y-1"><span className="block font-medium">Room</span>
+                <select className={input + ' w-full'} value={room || rooms[0].roomName} onChange={(e) => setRoom(e.target.value)}>{rooms.map((r) => <option key={r.id}>{r.roomName}</option>)}</select></label>
+              <label className="space-y-1"><span className="block font-medium">What it's for</span>
+                <input className={input + ' w-full'} placeholder="e.g. Toddler group, Band practice" value={title} onChange={(e) => setTitle(e.target.value)} /></label>
+              <label className="space-y-1"><span className="block font-medium">Date</span><input type="date" className={input + ' w-full'} value={date} onChange={(e) => setDate(e.target.value)} /></label>
+              <div className="grid grid-cols-2 gap-2">
+                <label className="space-y-1"><span className="block font-medium">From</span><input type="time" className={input + ' w-full'} value={start} onChange={(e) => setStart(e.target.value)} /></label>
+                <label className="space-y-1"><span className="block font-medium">Until</span><input type="time" className={input + ' w-full'} value={end} onChange={(e) => setEnd(e.target.value)} /></label>
+              </div>
+              <label className="space-y-1"><span className="block font-medium">Booked by (optional)</span><input className={input + ' w-full'} value={organizer} onChange={(e) => setOrganizer(e.target.value)} /></label>
+              <label className="space-y-1"><span className="block font-medium">Notes (optional)</span><input className={input + ' w-full'} placeholder="e.g. tables out, heating on" value={notes} onChange={(e) => setNotes(e.target.value)} /></label>
+            </div>
+            <div className="flex items-center justify-between gap-2">
+              <label className="inline-flex items-center gap-2"><input type="checkbox" checked={av} onChange={(e) => setAv(e.target.checked)} /> Needs the projector / PraiseAV</label>
+              <button type="submit" className={primary}>Book it</button>
+            </div>
+          </form>
+        )}
+        <div className="px-5 pt-3 text-xs"><label className="inline-flex items-center gap-2 text-slate-600 dark:text-slate-400"><input type="checkbox" checked={showPast} onChange={(e) => setShowPast(e.target.checked)} /> Show past bookings</label></div>
+        {!shown.length && <p className="p-5 text-xs text-slate-500">No {showPast ? '' : 'upcoming '}bookings.</p>}
+        <ul className="divide-y divide-slate-200 dark:divide-slate-800">
+          {shown.map((b) => (
+            <li key={b.id} className="px-5 py-3 text-xs space-y-0.5">
+              <div className="flex items-center justify-between gap-2">
+                <span className="font-semibold text-sm text-slate-900 dark:text-slate-100">{b.eventTitle}</span>
+                <span className="flex items-center gap-2">
+                  <span className="font-mono text-indigo-600 dark:text-indigo-400">{b.date} · {b.startTime}–{b.endTime}</span>
+                  {canEditGroups && <button type="button" aria-label={`Cancel booking ${b.eventTitle}`} className="p-1 text-red-600"
+                    onClick={() => { if (confirm(`Cancel "${b.eventTitle}" on ${b.date}?`)) setRoomBookings((prev) => prev.filter((x) => x.id !== b.id)); }}><Trash2 className="w-3.5 h-3.5" /></button>}
+                </span>
+              </div>
+              <div className="text-slate-500 dark:text-slate-400">{[b.roomName, b.organizer && `Booked by ${b.organizer}`, b.avRequired && 'Needs the projector'].filter(Boolean).join(' · ')}</div>
+              {b.setupNotes && <div className="text-slate-500">{b.setupNotes}</div>}
+            </li>
+          ))}
+        </ul>
+      </div>
+    </div>
+  );
+};
+
+// ---------------- Giving ----------------
+
+const GivingSection: React.FC<GroupsAndGivingWorkspaceProps> = ({ donations, setDonations, canEditFinance }) => {
+  const [showAdd, setShowAdd] = useState(false);
+  const [showNames, setShowNames] = useState(false);
+  const [period, setPeriod] = useState<'month' | 'year' | 'all'>('month');
+  const [date, setDate] = useState(today());
+  const [source, setSource] = useState(COLLECTION_SUGGESTIONS[0]);
+  const [fund, setFund] = useState(FUND_SUGGESTIONS[0]);
+  const [method, setMethod] = useState(METHOD_OPTIONS[0]);
+  const [amount, setAmount] = useState('');
+  const [named, setNamed] = useState(false);
+  const [donor, setDonor] = useState('');
+  const [note, setNote] = useState('');
+  const [error, setError] = useState('');
+
+  const periodKey = period === 'month' ? today().slice(0, 7) : period === 'year' ? today().slice(0, 4) : '';
+  const summary = givingSummary(donations, periodKey);
+  const entries = [...donations].filter((d) => !periodKey || d.date.startsWith(periodKey)).sort((a, b) => b.date.localeCompare(a.date));
+  const periodLabel = period === 'month' ? 'This month' : period === 'year' ? 'This year' : 'All time';
+
+  const save = (e: React.FormEvent) => {
+    e.preventDefault();
+    const value = Math.round(Number(amount) * 100) / 100;
+    if (!Number.isFinite(value) || value <= 0) { setError('Enter the amount, e.g. 245.50'); return; }
+    if (!source.trim()) { setError('Say how it came in, e.g. Sunday morning collection.'); return; }
+    if (named && !donor.trim()) { setError('Enter who gave it, or untick "Record who gave it".'); return; }
+    setError('');
+    setDonations((prev) => [{
+      id: 'don-' + crypto.randomUUID(), date, amount: value, source: source.trim().slice(0, 100), fund: fund.trim().slice(0, 100) || 'General fund',
+      method, donorName: named ? donor.trim().slice(0, 100) : '', note: note.trim().slice(0, 300),
+    }, ...prev]);
+    setAmount(''); setDonor(''); setNote(''); setNamed(false); setShowAdd(false);
+  };
+
+  const exportCsv = () => {
+    const blob = new Blob([givingCsv(entries, showNames)], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = `praiseav-suite-giving-${periodKey || 'all'}.csv`; a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center gap-1 p-1 bg-slate-100 dark:bg-slate-800 rounded-lg text-xs">
+          {(['month', 'year', 'all'] as const).map((p) => <button key={p} type="button" onClick={() => setPeriod(p)} aria-pressed={period === p}
+            className={`px-3 py-1 rounded-md ${period === p ? 'bg-white dark:bg-slate-900 shadow-xs' : 'text-slate-600 dark:text-slate-400'}`}>{p === 'month' ? 'This month' : p === 'year' ? 'This year' : 'All time'}</button>)}
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <button type="button" className={plain} onClick={exportCsv}><Download className="w-3.5 h-3.5" /> Download (CSV)</button>
+          {canEditFinance && <button type="button" className={primary} onClick={() => setShowAdd(!showAdd)}><Plus className="w-3.5 h-3.5" /> Record giving</button>}
         </div>
       </div>
 
-      {sectionView === 'groups-rooms' && canSeeGroups ? (
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-          {/* Small Groups Directory */}
-          <div className="lg:col-span-6 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden">
-            <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-200 dark:border-slate-800">
-              <div>
-                <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">
-                  Small Groups & Midweek Communities ({smallGroups.length})
-                </h2>
-                <p className="text-xs text-slate-500 dark:text-slate-400">
-                  Home groups, youth tables, and courses
-                </p>
-              </div>
-              {canEditGroups && <button
-                type="button"
-                onClick={() => setShowAddGroup(!showAddGroup)}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/50 rounded-lg"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                New Group
-              </button>}
-            </div>
-
-            {canEditGroups && showAddGroup && (
-              <form
-                onSubmit={handleCreateGroup}
-                className="p-4 bg-slate-50 dark:bg-slate-950 border-b border-slate-200 dark:border-slate-800 space-y-3"
-              >
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <input
-                    type="text"
-                    required
-                    placeholder="Group Name (e.g. Eastside Home Group)"
-                    value={groupName}
-                    onChange={(e) => setGroupName(e.target.value)}
-                    className="px-3 py-1.5 text-xs bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg"
-                  />
-                  <input
-                    type="text"
-                    placeholder="Leaders"
-                    value={groupLeader}
-                    onChange={(e) => setGroupLeader(e.target.value)}
-                    className="px-3 py-1.5 text-xs bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg"
-                  />
-                  <input
-                    type="text"
-                    placeholder="Location / Address"
-                    value={groupLocation}
-                    onChange={(e) => setGroupLocation(e.target.value)}
-                    className="px-3 py-1.5 text-xs bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg"
-                  />
-                  <input
-                    type="text"
-                    placeholder="Current Curriculum / Study"
-                    value={groupStudy}
-                    onChange={(e) => setGroupStudy(e.target.value)}
-                    className="px-3 py-1.5 text-xs bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg"
-                  />
-                </div>
-                <div className="flex justify-end gap-2">
-                  <button
-                    type="submit"
-                    className="px-3 py-1.5 text-xs font-semibold text-white bg-indigo-600 rounded-lg"
-                  >
-                    Create Small Group
-                  </button>
-                </div>
-              </form>
-            )}
-
-            <div className="divide-y divide-slate-200 dark:divide-slate-800">
-              {smallGroups.map((sg) => (
-                <div key={sg.id} className="p-4 space-y-1">
-                  <div className="flex items-center justify-between">
-                    <div className="font-semibold text-sm text-slate-900 dark:text-slate-100">
-                      {sg.name}
-                    </div>
-                    <span className="font-mono text-xs text-slate-500 tabular-nums">
-                      {sg.currentMembers}/{sg.maxCapacity} members
-                    </span>
-                  </div>
-                  <div className="text-xs text-slate-500 dark:text-slate-400">
-                    {sg.category} · {sg.meetingDay}s at {sg.meetingTime} · Led by {sg.leaderName}
-                  </div>
-                  <div className="text-xs text-slate-600 dark:text-slate-300 pt-1">
-                    Location: {sg.location} · Study: <strong>{sg.currentStudy}</strong>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Room & Sanctuary AV Calendar Bookings */}
-          <div className="lg:col-span-6 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden">
-            <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-200 dark:border-slate-800">
-              <div>
-                <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">
-                  Campus Room & Praise AV Rig Bookings ({roomBookings.length})
-                </h2>
-                <p className="text-xs text-slate-500 dark:text-slate-400">
-                  Automatic room conflict detection included
-                </p>
-              </div>
-              {canEditGroups && <button
-                type="button"
-                onClick={() => setShowAddBooking(!showAddBooking)}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/50 rounded-lg"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                Book Room
-              </button>}
-            </div>
-
-            {canEditGroups && showAddBooking && (
-              <form
-                onSubmit={handleCreateBooking}
-                className="p-4 bg-slate-50 dark:bg-slate-950 border-b border-slate-200 dark:border-slate-800 space-y-3"
-              >
-                {bookingError && (
-                  <div className="p-2.5 bg-red-50 dark:bg-red-950/70 text-red-700 dark:text-red-300 text-xs rounded-lg border border-red-200 dark:border-red-800">
-                    {bookingError}
-                  </div>
-                )}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <select
-                    value={roomName}
-                    onChange={(e) => setRoomName(e.target.value as RoomBooking['roomName'])}
-                    className="px-3 py-1.5 text-xs bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg"
-                  >
-                    <option value="Main Sanctuary">Main Sanctuary</option>
-                    <option value="Fellowship Hall">Fellowship Hall</option>
-                    <option value="Youth Loft">Youth Loft</option>
-                    <option value="AV Broadcast Suite">AV Broadcast Suite</option>
-                    <option value="Kids Wing">Kids Wing</option>
-                  </select>
-                  <input
-                    type="text"
-                    required
-                    placeholder="Event or Rehearsal Name"
-                    value={eventTitle}
-                    onChange={(e) => setEventTitle(e.target.value)}
-                    className="px-3 py-1.5 text-xs bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg"
-                  />
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  <input
-                    type="date"
-                    value={eventDate}
-                    onChange={(e) => setEventDate(e.target.value)}
-                    className="px-3 py-1.5 text-xs font-mono bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg"
-                  />
-                  <input
-                    type="time"
-                    value={startTime}
-                    onChange={(e) => setStartTime(e.target.value)}
-                    className="px-3 py-1.5 text-xs font-mono bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg"
-                  />
-                  <input
-                    type="time"
-                    value={endTime}
-                    onChange={(e) => setEndTime(e.target.value)}
-                    className="px-3 py-1.5 text-xs font-mono bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg"
-                  />
-                </div>
-                <div className="flex items-center justify-between">
-                  <label className="inline-flex items-center gap-2 text-xs text-slate-700 dark:text-slate-300">
-                    <input
-                      type="checkbox"
-                      checked={avRequired}
-                      onChange={(e) => setAvRequired(e.target.checked)}
-                    />
-                    Requires Praise AV Projection Rig
-                  </label>
-                  <button
-                    type="submit"
-                    className="px-3.5 py-1.5 text-xs font-semibold text-white bg-indigo-600 rounded-lg"
-                  >
-                    Confirm Room Booking
-                  </button>
-                </div>
-              </form>
-            )}
-
-            <div className="divide-y divide-slate-200 dark:divide-slate-800">
-              {roomBookings.map((rb) => (
-                <div key={rb.id} className="p-4 space-y-1">
-                  <div className="flex items-center justify-between">
-                    <span className="font-semibold text-sm text-slate-900 dark:text-slate-100">
-                      {rb.eventTitle}
-                    </span>
-                    <span className="font-mono text-xs text-indigo-600 dark:text-indigo-400">
-                      {rb.date} · {rb.startTime}–{rb.endTime}
-                    </span>
-                  </div>
-                  <div className="text-xs text-slate-500 dark:text-slate-400">
-                    Room: <strong>{rb.roomName}</strong> · Organizer: {rb.organizer} ·{' '}
-                    {rb.avRequired ? 'Praise AV Rig Reserved' : 'No AV needed'}
-                  </div>
-                  <div className="text-xs text-slate-500">{rb.setupNotes}</div>
-                </div>
-              ))}
-            </div>
-          </div>
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="p-5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl">
+          <div className="text-xs text-slate-500 dark:text-slate-400">{periodLabel}: total recorded</div>
+          <div className="text-2xl font-bold font-mono tabular-nums text-slate-900 dark:text-slate-100 mt-1">{money(summary.total)}</div>
+          <div className="text-[11px] text-slate-500 mt-1">{summary.count} {summary.count === 1 ? 'entry' : 'entries'}. A record only; no payments go through the Suite.</div>
         </div>
-      ) : canSeeFinance ? (
-        /* Giving records */
-        <div className="space-y-6">
-          {/* Summary Metric Row */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div className="p-5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl">
-              <div className="text-xs text-slate-500 dark:text-slate-400">
-                Total Recorded Giving (Batch)
-              </div>
-              <div className="text-2xl font-bold font-mono tabular-nums text-slate-900 dark:text-slate-100 mt-1">
-                £{totalDonations.toLocaleString('en-GB', { minimumFractionDigits: 2 })}
-              </div>
-              <div className="text-[11px] text-slate-500 mt-1">
-                This is a record of giving, not a payment processor.
-              </div>
-            </div>
-            <div className="p-5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl">
-              <div className="text-xs text-slate-500 dark:text-slate-400">
-                Potential Gift Aid for review
-              </div>
-              <div className="text-2xl font-bold font-mono tabular-nums text-emerald-600 dark:text-emerald-400 mt-1">
-                +£{giftAidReclaimable.toLocaleString('en-GB', { minimumFractionDigits: 2 })}
-              </div>
-              <div className="text-[11px] text-slate-500 mt-1">
-                Subject to valid declarations and HMRC rules
-              </div>
-            </div>
-            <div className="p-5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl">
-              <div className="text-xs text-slate-500 dark:text-slate-400">
-                Recorded giving plus potential Gift Aid
-              </div>
-              <div className="text-2xl font-bold font-mono tabular-nums text-indigo-600 dark:text-indigo-400 mt-1">
-                £
-                {(totalDonations + giftAidReclaimable).toLocaleString('en-GB', {
-                  minimumFractionDigits: 2,
-                })}
-              </div>
-              <div className="text-[11px] text-slate-500 mt-1">
-                Across {donations.length} recorded transactions
-              </div>
-            </div>
+        <TotalsCard title="By how it came in" totals={summary.bySource} />
+        <TotalsCard title="By fund" totals={summary.byFund} />
+      </div>
+
+      <div className={card}>
+        <div className="flex flex-wrap items-center justify-between gap-2 px-5 py-3.5 border-b border-slate-200 dark:border-slate-800">
+          <div>
+            <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2"><HeartHandshake className="w-4 h-4" /> Giving record</h2>
+            <p className="text-xs text-slate-500 dark:text-slate-400">Record collections as one total. Naming a giver is optional, and only finance and admins can see giving at all.</p>
           </div>
-
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden">
-            <div className="flex flex-wrap items-center justify-between gap-2 px-5 py-3.5 border-b border-slate-200 dark:border-slate-800">
-              <div>
-                <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">
-                  Giving ledger
-                </h2>
-                <p className="text-xs text-slate-500 dark:text-slate-400">
-                  Record transfers and offerings. No payments are processed here.
-                </p>
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={handleExportGiftAidCSV}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-200 border border-slate-300 dark:border-slate-700 rounded-lg hover:bg-slate-100"
-                >
-                  <Download className="w-3.5 h-3.5" />
-                  Export review CSV
-                </button>
-                {canEditFinance && <button
-                  type="button"
-                  onClick={() => setShowAddDonation(!showAddDonation)}
-                  className="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold text-white bg-indigo-600 rounded-lg hover:bg-indigo-500"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  Log Offering / Transfer
-                </button>}
-              </div>
-            </div>
-
-            {canEditFinance && showAddDonation && (
-              <form
-                onSubmit={handleCreateDonation}
-                className="p-4 bg-slate-50 dark:bg-slate-950 border-b border-slate-200 dark:border-slate-800 grid grid-cols-1 sm:grid-cols-6 gap-3 items-end"
-              >
-                <div className="sm:col-span-2">
-                  <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
-                    Donor / Household
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="e.g. Chen Household"
-                    value={donorName}
-                    onChange={(e) => setDonorName(e.target.value)}
-                    className="w-full px-3 py-1.5 text-xs bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
-                    Amount (£)
-                  </label>
-                  <input
-                    type="number"
-                    min={1}
-                    value={amount}
-                    onChange={(e) => setAmount(Number(e.target.value))}
-                    className="w-full px-3 py-1.5 text-xs font-mono bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
-                    Designated Fund
-                  </label>
-                  <select
-                    value={fund}
-                    onChange={(e) => setFund(e.target.value as DonationRecord['fund'])}
-                    className="w-full px-2.5 py-1.5 text-xs bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg"
-                  >
-                    <option value="General Ministry Fund">General Ministry Fund</option>
-                    <option value="Building & AV Upgrade">Building & AV Upgrade</option>
-                    <option value="Community Foodbank">Community Foodbank</option>
-                    <option value="Youth Camp Bursary">Youth Camp Bursary</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="inline-flex items-center gap-1.5 text-xs text-slate-700 dark:text-slate-300 pb-2">
-                    <input
-                      type="checkbox"
-                      checked={giftAidEligible}
-                      onChange={(e) => setGiftAidEligible(e.target.checked)}
-                    />
-                    Gift Aid (+25%)
-                  </label>
-                </div>
-                <div>
-                  <button
-                    type="submit"
-                    className="w-full px-3 py-1.5 text-xs font-semibold text-white bg-indigo-600 rounded-lg"
-                  >
-                    Save Entry
-                  </button>
-                </div>
-              </form>
-            )}
-
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse">
-                <thead>
-                  <tr className="border-b border-slate-200 dark:border-slate-800 text-[11px] font-semibold text-slate-500 dark:text-slate-400 bg-slate-50/60 dark:bg-slate-950/40">
-                    <th className="py-3 pl-5 pr-2">Date</th>
-                    <th className="py-3 px-2">Donor / Household</th>
-                    <th className="py-3 px-2">Designated Fund</th>
-                    <th className="py-3 px-2">Method</th>
-                    <th className="py-3 px-2 text-right">Amount</th>
-                    <th className="py-3 pl-2 pr-5 text-right">Gift Aid (+25%)</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-200 dark:divide-slate-800 text-xs">
-                  {donations.map((d) => (
-                    <tr key={d.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
-                      <td className="py-3 pl-5 pr-2 font-mono tabular-nums text-slate-500">
-                        {d.date}
-                      </td>
-                      <td className="py-3 px-2 font-semibold text-slate-900 dark:text-slate-100">
-                        {d.donorName}
-                      </td>
-                      <td className="py-3 px-2 text-slate-700 dark:text-slate-300">{d.fund}</td>
-                      <td className="py-3 px-2 text-slate-500">{d.method}</td>
-                      <td className="py-3 px-2 text-right font-mono tabular-nums font-semibold text-slate-900 dark:text-slate-100">
-                        £{d.amount.toFixed(2)}
-                      </td>
-                      <td className="py-3 pl-2 pr-5 text-right font-mono tabular-nums text-emerald-600 dark:text-emerald-400">
-                        {d.giftAidEligible ? `+£${(d.amount * 0.25).toFixed(2)}` : '—'}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
+          {summary.named > 0 && <label className="inline-flex items-center gap-2 text-xs text-slate-700 dark:text-slate-300"><input type="checkbox" checked={showNames} onChange={(e) => setShowNames(e.target.checked)} /> Show names ({summary.named} named)</label>}
         </div>
-      ) : <p>This area is restricted to church finance staff.</p>}
+
+        {canEditFinance && showAdd && (
+          <form onSubmit={save} className="p-4 bg-slate-50 dark:bg-slate-950 border-b border-slate-200 dark:border-slate-800 space-y-3 text-xs">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="space-y-1"><span className="block font-medium">How it came in</span>
+                <ChoiceOrOther label="How it came in" options={COLLECTION_SUGGESTIONS} value={source} onChange={setSource} placeholder="e.g. Harvest collection" /></div>
+              <label className="space-y-1"><span className="block font-medium">Amount (£)</span>
+                <input inputMode="decimal" className={input + ' w-full font-mono'} placeholder="0.00" value={amount} onChange={(e) => setAmount(e.target.value)} /></label>
+              <label className="space-y-1"><span className="block font-medium">Date</span>
+                <input type="date" className={input + ' w-full'} value={date} onChange={(e) => setDate(e.target.value)} /></label>
+              <div className="space-y-1"><span className="block font-medium">Fund (what it's for)</span>
+                <ChoiceOrOther label="Fund" options={FUND_SUGGESTIONS} value={fund} onChange={setFund} placeholder="e.g. Roof appeal" /></div>
+              <label className="space-y-1"><span className="block font-medium">Paid by</span>
+                <select className={input + ' w-full'} value={method} onChange={(e) => setMethod(e.target.value)}>{METHOD_OPTIONS.map((m) => <option key={m}>{m}</option>)}</select></label>
+              <label className="space-y-1"><span className="block font-medium">Note (optional)</span>
+                <input className={input + ' w-full'} placeholder="e.g. counted by Sue and Tom" value={note} onChange={(e) => setNote(e.target.value)} /></label>
+            </div>
+            <div className="space-y-2">
+              <label className="inline-flex items-center gap-2"><input type="checkbox" checked={named} onChange={(e) => setNamed(e.target.checked)} /> Record who gave it (optional, e.g. for a large one-off gift)</label>
+              {named && <input className={input + ' w-full sm:w-1/2'} placeholder="Name or household" value={donor} onChange={(e) => setDonor(e.target.value)} aria-label="Who gave it" />}
+            </div>
+            {error && <p role="alert" className="text-red-700 dark:text-red-300">{error}</p>}
+            <div className="flex justify-end"><button type="submit" className={primary}>Save</button></div>
+          </form>
+        )}
+
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="border-b border-slate-200 dark:border-slate-800 text-[11px] font-semibold text-slate-500 dark:text-slate-400 bg-slate-50/60 dark:bg-slate-950/40">
+                <th className="py-3 pl-5 pr-2">Date</th><th className="py-3 px-2">Came in through</th><th className="py-3 px-2">Fund</th>
+                <th className="py-3 px-2">Paid by</th>{showNames && <th className="py-3 px-2">Given by</th>}<th className="py-3 px-2 text-right">Amount</th><th className="py-3 pr-5" />
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-200 dark:divide-slate-800 text-xs">
+              {!entries.length && <tr><td colSpan={7} className="p-5 text-slate-500">Nothing recorded for {periodLabel.toLowerCase()}.</td></tr>}
+              {entries.map((d) => (
+                <tr key={d.id}>
+                  <td className="py-3 pl-5 pr-2 font-mono tabular-nums text-slate-500">{d.date}</td>
+                  <td className="py-3 px-2 font-semibold text-slate-900 dark:text-slate-100">{givingSource(d)}{d.note && <div className="font-normal text-slate-500">{d.note}</div>}</td>
+                  <td className="py-3 px-2 text-slate-700 dark:text-slate-300">{d.fund}</td>
+                  <td className="py-3 px-2 text-slate-500">{d.method}</td>
+                  {showNames && <td className="py-3 px-2 text-slate-700 dark:text-slate-300">{d.donorName || '—'}</td>}
+                  <td className="py-3 px-2 text-right font-mono tabular-nums font-semibold text-slate-900 dark:text-slate-100">{money(d.amount)}</td>
+                  <td className="py-3 pr-5 text-right">{canEditFinance && <button type="button" aria-label="Delete this entry" className="p-1 text-red-600"
+                    onClick={() => { if (confirm(`Delete this entry (${givingSource(d)}, ${money(d.amount)} on ${d.date})?`)) setDonations((prev) => prev.filter((x) => x.id !== d.id)); }}><Trash2 className="w-3.5 h-3.5" /></button>}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
     </div>
+  );
+};
+
+const TotalsCard: React.FC<{ title: string; totals: Array<{ label: string; total: number }> }> = ({ title, totals }) => (
+  <div className="p-5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl">
+    <div className="text-xs text-slate-500 dark:text-slate-400 mb-2">{title}</div>
+    {!totals.length && <div className="text-xs text-slate-500">Nothing yet.</div>}
+    <ul className="space-y-1 text-xs">
+      {totals.slice(0, 5).map((t) => <li key={t.label} className="flex justify-between gap-2"><span className="truncate">{t.label}</span><span className="font-mono tabular-nums">{money(t.total)}</span></li>)}
+      {totals.length > 5 && <li className="text-slate-500">and {totals.length - 5} more</li>}
+    </ul>
+  </div>
+);
+
+/** A short list of common choices, plus "Something else" to type your own. */
+const ChoiceOrOther: React.FC<{ label: string; options: string[]; value: string; onChange: (v: string) => void; placeholder: string }> = ({ label, options, value, onChange, placeholder }) => {
+  const [other, setOther] = useState(!options.includes(value));
+  return (
+    <span className="block space-y-1">
+      <select aria-label={label} className={input + ' w-full'} value={other ? '__other' : value}
+        onChange={(e) => { if (e.target.value === '__other') { setOther(true); onChange(''); } else { setOther(false); onChange(e.target.value); } }}>
+        {options.map((o) => <option key={o} value={o}>{o}</option>)}
+        <option value="__other">Something else…</option>
+      </select>
+      {other && <input aria-label={label + ' (your own)'} className={input + ' w-full'} placeholder={placeholder} value={value} onChange={(e) => onChange(e.target.value)} />}
+    </span>
   );
 };

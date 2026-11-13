@@ -627,15 +627,16 @@ function SuiteWorkspace({ session, onExit }: { session: ChurchSession; onExit: (
           {activeModule === 'groups-giving' && (
             <GroupsAndGivingWorkspace
               smallGroups={smallGroups}
-              onAddSmallGroup={(sg) => setSmallGroups((prev) => [sg, ...prev])}
+              setSmallGroups={setSmallGroups}
               roomBookings={roomBookings}
-              onAddRoomBooking={(rb) => setRoomBookings((prev) => [rb, ...prev])}
+              setRoomBookings={setRoomBookings}
               donations={donations}
+              setDonations={setDonations}
+              members={!session || canRead(session, 'members') ? members : []}
               canSeeGroups={!session || canRead(session, 'groups')}
               canSeeFinance={!session || canRead(session, 'donations')}
               canEditGroups={!session || canWrite(session, 'groups')}
               canEditFinance={!session || canWrite(session, 'donations')}
-              onAddDonation={(don) => setDonations((prev) => [don, ...prev])}
             />
           )}
 
