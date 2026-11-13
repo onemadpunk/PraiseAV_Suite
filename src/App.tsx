@@ -605,6 +605,7 @@ function SuiteWorkspace({ session, onExit }: { session: ChurchSession; onExit: (
           {activeModule === 'people' && (
             <PeopleAndRotasWorkspace
               members={members}
+              senderEmail={session?.user.email || ''}
               onAddMember={(m) => setMembers((prev) => [m, ...prev])}
               onUpdateMember={(updated) =>
                 setMembers((prev) =>
@@ -637,6 +638,7 @@ function SuiteWorkspace({ session, onExit }: { session: ChurchSession; onExit: (
               canSeeFinance={!session || canRead(session, 'donations')}
               canEditGroups={!session || canWrite(session, 'groups')}
               canEditFinance={!session || canWrite(session, 'donations')}
+              senderEmail={session?.user.email || ''}
             />
           )}
 

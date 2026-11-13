@@ -1,5 +1,6 @@
 import type { DonationRecord, Member, RoomBooking, SmallGroup } from '../types/church';
 import { csvCell } from './csv';
+import { bccMailto, emailAddresses } from './groupEmail';
 
 // ---------- Rooms ----------
 
@@ -50,13 +51,10 @@ export function groupPeople(group: SmallGroup, members: Member[]): { people: Mem
 /**
  * A mailto: link that opens the sender's own email app, addressed to the group.
  * Addresses go in BCC so members do not see each other's email addresses.
+ * Null when nobody has an address, or the list is too long for a mail link.
  */
-export function groupEmailLink(group: SmallGroup, members: Member[], subject: string, body: string): string | null {
-  const emails = [...new Set(groupPeople(group, members).people.map((m) => m.email.trim()).filter(Boolean))];
-  if (!emails.length) return null;
-  const query = 'bcc=' + emails.map(encodeURIComponent).join(',')
-    + '&subject=' + encodeURIComponent(subject) + '&body=' + encodeURIComponent(body);
-  return 'mailto:?' + query;
+export function groupEmailLink(group: SmallGroup, members: Member[], subject: string, body: string, to?: string): string | null {
+  return bccMailto(emailAddresses(groupPeople(group, members).people), { to, subject, body });
 }
 
 export function materialEmailText(group: SmallGroup, material: { title: string; link: string; note: string }): { subject: string; body: string } {

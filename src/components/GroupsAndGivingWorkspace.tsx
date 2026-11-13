@@ -6,6 +6,8 @@ import {
   givingSource, givingSummary, groupEmailLink, groupMemberCount, groupPeople, materialEmailText, money,
   newRoom, roomBookingsOnly, safeLink,
 } from '../utils/groupsRoomsGiving';
+import { emailAddresses } from '../utils/groupEmail';
+import { EmailGroupButton } from './EmailGroupButton';
 
 interface GroupsAndGivingWorkspaceProps {
   smallGroups: SmallGroup[];
@@ -20,6 +22,8 @@ interface GroupsAndGivingWorkspaceProps {
   canSeeFinance: boolean;
   canEditGroups: boolean;
   canEditFinance: boolean;
+  /** The signed-in person's address, used as "To" on group emails (everyone else is in BCC). */
+  senderEmail?: string;
 }
 
 type Section = 'groups' | 'rooms' | 'giving';
@@ -64,7 +68,7 @@ export const GroupsAndGivingWorkspace: React.FC<GroupsAndGivingWorkspaceProps> =
 
 // ---------------- Small groups ----------------
 
-const GroupsSection: React.FC<GroupsAndGivingWorkspaceProps> = ({ smallGroups, setSmallGroups, members, canEditGroups }) => {
+const GroupsSection: React.FC<GroupsAndGivingWorkspaceProps> = ({ smallGroups, setSmallGroups, members, canEditGroups, senderEmail }) => {
   const [showAdd, setShowAdd] = useState(false);
   const [openId, setOpenId] = useState<string | null>(null);
   const [name, setName] = useState('');
@@ -140,7 +144,7 @@ const GroupsSection: React.FC<GroupsAndGivingWorkspaceProps> = ({ smallGroups, s
               </div>
               {g.currentStudy && <div className="text-xs text-slate-600 dark:text-slate-300">Study: <strong>{g.currentStudy}</strong></div>}
             </button>
-            {openId === g.id && <GroupDetail group={g} members={members} canEdit={canEditGroups}
+            {openId === g.id && <GroupDetail group={g} members={members} canEdit={canEditGroups} senderEmail={senderEmail}
               onChange={(change) => update(g.id, change)}
               onDelete={() => { if (confirm(`Delete the group "${g.name}"? Its shared materials are deleted too.`)) setSmallGroups((prev) => prev.filter((x) => x.id !== g.id)); }} />}
           </div>
@@ -150,20 +154,25 @@ const GroupsSection: React.FC<GroupsAndGivingWorkspaceProps> = ({ smallGroups, s
   );
 };
 
-const GroupDetail: React.FC<{ group: SmallGroup; members: Member[]; canEdit: boolean; onChange: (c: (g: SmallGroup) => SmallGroup) => void; onDelete: () => void }> = ({ group, members, canEdit, onChange, onDelete }) => {
+const GroupDetail: React.FC<{ group: SmallGroup; members: Member[]; canEdit: boolean; senderEmail?: string; onChange: (c: (g: SmallGroup) => SmallGroup) => void; onDelete: () => void }> = ({ group, members, canEdit, senderEmail, onChange, onDelete }) => {
   const [title, setTitle] = useState('');
   const [link, setLink] = useState('');
   const [note, setNote] = useState('');
   const [error, setError] = useState('');
   const [picking, setPicking] = useState(false);
-  const { people, noEmail } = groupPeople(group, members);
+  const { people } = groupPeople(group, members);
   const ids = new Set(group.memberIds || []);
   const materials = group.materials || [];
   const canEmail = canEdit && members.length > 0;
 
   const openEmail = (subject: string, body: string) => {
-    const href = groupEmailLink(group, members, subject, body);
-    if (!href) { setError('Nobody in this group has an email address in People yet.'); return; }
+    const href = groupEmailLink(group, members, subject, body, senderEmail);
+    if (!href) {
+      setError(emailAddresses(people).length
+        ? 'This group is too big for your email app to open in one go. Use "Copy addresses" above and paste them into BCC.'
+        : 'Nobody in this group has an email address in People yet.');
+      return;
+    }
     window.location.href = href;
   };
 
@@ -202,10 +211,7 @@ const GroupDetail: React.FC<{ group: SmallGroup; members: Member[]; canEdit: boo
                 ))}
               </div>
             : people.length ? <p className="text-slate-700 dark:text-slate-300">{people.map((m) => m.fullName).join(', ')}</p> : <p className="text-slate-500">Nobody chosen yet.</p>}
-        {canEmail && people.length > 0 && <div className="flex flex-wrap items-center gap-2">
-          <button type="button" className={plain} onClick={() => openEmail(group.name, `Hello ${group.name},\n\n`)}><Mail className="w-3.5 h-3.5" /> Email the group</button>
-          {noEmail > 0 && <span className="text-amber-700 dark:text-amber-400">{noEmail} {noEmail === 1 ? 'person has' : 'people have'} no email address in People.</span>}
-        </div>}
+        {members.length > 0 && people.length > 0 && <EmailGroupButton label="Email this group" people={people} senderEmail={senderEmail} subject={group.name} body={`Hello ${group.name},\n\n`} />}
       </section>
 
       {/* Materials */}

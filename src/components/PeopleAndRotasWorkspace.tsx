@@ -8,17 +8,22 @@ import {
   UserPlus,
 } from 'lucide-react';
 import { Member, RotaDepartment } from '../types/church';
+import { bandMembers } from '../utils/groupEmail';
+import { EmailGroupButton } from './EmailGroupButton';
 
 interface PeopleAndRotasWorkspaceProps {
   members: Member[];
   onAddMember: (member: Member) => void;
   onUpdateMember: (member: Member) => void;
+  /** The signed-in person's address, used as "To" on group emails (everyone else is in BCC). */
+  senderEmail?: string;
 }
 
 export const PeopleAndRotasWorkspace: React.FC<PeopleAndRotasWorkspaceProps> = ({
   members,
   onAddMember,
   onUpdateMember,
+  senderEmail,
 }) => {
   const [search, setSearch] = useState('');
   const [deptFilter, setDeptFilter] = useState<string>('ALL');
@@ -57,7 +62,7 @@ export const PeopleAndRotasWorkspace: React.FC<PeopleAndRotasWorkspaceProps> = (
     const created: Member = {
       id: 'mem-' + crypto.randomUUID(),
       fullName: fullName.trim(),
-      email: email.trim() || 'member@gracecommunity.org.uk',
+      email: email.trim(),
       phone: phone.trim() || '+44 7700 900000',
       household: household.trim() || `${fullName.trim().split(' ').pop()} Household`,
       status: 'Member',
@@ -162,6 +167,17 @@ export const PeopleAndRotasWorkspace: React.FC<PeopleAndRotasWorkspaceProps> = (
           </button>
         </div>
       </div>
+
+      {members.length > 0 && (
+        <section aria-label="Email the church" className="p-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl space-y-3">
+          <div>
+            <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Email a group</h2>
+            <p className="text-xs text-slate-500 dark:text-slate-400">Opens a new email in your own email app with everyone in BCC, so nobody sees anyone else's address. The Suite doesn't send anything. Small groups have their own button under Groups.</p>
+          </div>
+          <EmailGroupButton label="Email the whole church" people={members} senderEmail={senderEmail} />
+          <EmailGroupButton label="Email the worship band" people={bandMembers(members)} senderEmail={senderEmail} />
+        </section>
+      )}
 
       {showAddForm && (
         <form
