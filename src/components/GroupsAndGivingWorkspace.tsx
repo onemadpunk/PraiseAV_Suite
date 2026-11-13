@@ -22,6 +22,11 @@ interface GroupsAndGivingWorkspaceProps {
   canSeeFinance: boolean;
   canEditGroups: boolean;
   canEditFinance: boolean;
+  /** Members can book a free slot and cancel their own bookings. */
+  canBookRooms?: boolean;
+  /** The signed-in person's id and name, for their own bookings. */
+  myUid?: string;
+  myName?: string;
   /** The signed-in person's address, used as "To" on group emails (everyone else is in BCC). */
   senderEmail?: string;
 }
@@ -256,7 +261,8 @@ const GroupDetail: React.FC<{ group: SmallGroup; members: Member[]; canEdit: boo
 
 // ---------------- Rooms ----------------
 
-const RoomsSection: React.FC<GroupsAndGivingWorkspaceProps> = ({ roomBookings, setRoomBookings, canEditGroups }) => {
+export const RoomsSection: React.FC<GroupsAndGivingWorkspaceProps> = ({ roomBookings, setRoomBookings, canEditGroups, canBookRooms, myUid, myName, smallGroups }) => {
+  const canBook = canEditGroups || Boolean(canBookRooms);
   const rooms = useMemo(() => churchRooms(roomBookings), [roomBookings]);
   const bookings = useMemo(() => roomBookingsOnly(roomBookings), [roomBookings]);
   const [roomName, setRoomName] = useState('');
@@ -268,7 +274,8 @@ const RoomsSection: React.FC<GroupsAndGivingWorkspaceProps> = ({ roomBookings, s
   const [date, setDate] = useState(today());
   const [start, setStart] = useState('19:00');
   const [end, setEnd] = useState('21:00');
-  const [organizer, setOrganizer] = useState('');
+  const [organizer, setOrganizer] = useState(myName || '');
+  const [roomFilter, setRoomFilter] = useState('');
   const [av, setAv] = useState(false);
   const [notes, setNotes] = useState('');
   const [error, setError] = useState('');
@@ -287,18 +294,23 @@ const RoomsSection: React.FC<GroupsAndGivingWorkspaceProps> = ({ roomBookings, s
     e.preventDefault();
     const chosen = room || rooms[0]?.roomName || '';
     if (!title.trim()) { setError('Say what the booking is for.'); return; }
+    if (!organizer.trim()) { setError('Say who it is for: your name or your group.'); return; }
     const problem = bookingProblem(roomBookings, { roomName: chosen, date, startTime: start, endTime: end });
     if (problem) { setError(problem); return; }
     setError('');
     setRoomBookings((prev) => [...prev, {
       id: 'rb-' + crypto.randomUUID(), kind: 'booking', roomName: chosen, eventTitle: title.trim().slice(0, 200),
       date, startTime: start, endTime: end, organizer: organizer.trim().slice(0, 100), avRequired: av, setupNotes: notes.trim().slice(0, 500),
+      ...(myUid ? { bookedByUid: myUid } : {}),
     }]);
     setTitle(''); setNotes(''); setShowBook(false);
   };
 
   const now = today();
-  const shown = bookings.filter((b) => showPast || b.date >= now);
+  const shown = bookings.filter((b) => (showPast || b.date >= now) && (!roomFilter || b.roomName === roomFilter));
+  const chosenRoom = room || rooms[0]?.roomName || '';
+  const sameDay = bookings.filter((b) => b.roomName === chosenRoom && b.date === date);
+  const canCancel = (b: RoomBooking) => canEditGroups || Boolean(canBookRooms && myUid && b.bookedByUid === myUid);
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
@@ -328,26 +340,32 @@ const RoomsSection: React.FC<GroupsAndGivingWorkspaceProps> = ({ roomBookings, s
         <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-200 dark:border-slate-800">
           <div>
             <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2"><Calendar className="w-4 h-4" /> Room bookings</h2>
-            <p className="text-xs text-slate-500 dark:text-slate-400">The Suite stops a room being booked twice at the same time.</p>
+            <p className="text-xs text-slate-500 dark:text-slate-400">Who has which room, and when. A room can't be booked twice at the same time.</p>
           </div>
-          {canEditGroups && rooms.length > 0 && <button type="button" className={soft} onClick={() => setShowBook(!showBook)}><Plus className="w-3.5 h-3.5" /> Book a room</button>}
+          {canBook && rooms.length > 0 && <button type="button" className={soft} onClick={() => setShowBook(!showBook)}><Plus className="w-3.5 h-3.5" /> Book a room</button>}
         </div>
         {error && <p role="alert" className="mx-4 mt-3 p-2.5 bg-red-50 dark:bg-red-950/70 text-red-700 dark:text-red-300 text-xs rounded-lg border border-red-200 dark:border-red-800">{error}</p>}
         {canEditGroups && !rooms.length && <p className="p-5 text-xs text-slate-500">Add your church's rooms on the left first, then you can book them here.</p>}
-        {canEditGroups && showBook && rooms.length > 0 && (
+        {canBook && showBook && rooms.length > 0 && (
           <form onSubmit={book} className="p-4 bg-slate-50 dark:bg-slate-950 border-b border-slate-200 dark:border-slate-800 space-y-3 text-xs">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <label className="space-y-1"><span className="block font-medium">Room</span>
                 <select className={input + ' w-full'} value={room || rooms[0].roomName} onChange={(e) => setRoom(e.target.value)}>{rooms.map((r) => <option key={r.id}>{r.roomName}</option>)}</select></label>
               <label className="space-y-1"><span className="block font-medium">What it's for</span>
-                <input className={input + ' w-full'} placeholder="e.g. Toddler group, Band practice" value={title} onChange={(e) => setTitle(e.target.value)} /></label>
+                <input className={input + ' w-full'} placeholder="e.g. Band rehearsal, Boys' Brigade" value={title} onChange={(e) => setTitle(e.target.value)} /></label>
               <label className="space-y-1"><span className="block font-medium">Date</span><input type="date" className={input + ' w-full'} value={date} onChange={(e) => setDate(e.target.value)} /></label>
               <div className="grid grid-cols-2 gap-2">
                 <label className="space-y-1"><span className="block font-medium">From</span><input type="time" className={input + ' w-full'} value={start} onChange={(e) => setStart(e.target.value)} /></label>
                 <label className="space-y-1"><span className="block font-medium">Until</span><input type="time" className={input + ' w-full'} value={end} onChange={(e) => setEnd(e.target.value)} /></label>
               </div>
-              <label className="space-y-1"><span className="block font-medium">Booked by (optional)</span><input className={input + ' w-full'} value={organizer} onChange={(e) => setOrganizer(e.target.value)} /></label>
+              <label className="space-y-1"><span className="block font-medium">Who it's for (you or your group)</span><input className={input + ' w-full'} list="booking-groups" placeholder="e.g. Worship band" value={organizer} onChange={(e) => setOrganizer(e.target.value)} />
+                <datalist id="booking-groups">{smallGroups.map((g) => <option key={g.id} value={g.name} />)}</datalist></label>
               <label className="space-y-1"><span className="block font-medium">Notes (optional)</span><input className={input + ' w-full'} placeholder="e.g. tables out, heating on" value={notes} onChange={(e) => setNotes(e.target.value)} /></label>
+            </div>
+            <div className="p-2.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900" aria-live="polite">
+              {sameDay.length
+                ? <><span className="font-medium">Already booked in {chosenRoom} that day:</span> {sameDay.map((b) => `${b.startTime}–${b.endTime} ${b.eventTitle}${b.organizer ? ` (${b.organizer})` : ''}`).join(', ')}. Pick a time outside these.</>
+                : <span>{chosenRoom} is free all day on {date}.</span>}
             </div>
             <div className="flex items-center justify-between gap-2">
               <label className="inline-flex items-center gap-2"><input type="checkbox" checked={av} onChange={(e) => setAv(e.target.checked)} /> Needs the projector / PraiseAV</label>
@@ -355,7 +373,10 @@ const RoomsSection: React.FC<GroupsAndGivingWorkspaceProps> = ({ roomBookings, s
             </div>
           </form>
         )}
-        <div className="px-5 pt-3 text-xs"><label className="inline-flex items-center gap-2 text-slate-600 dark:text-slate-400"><input type="checkbox" checked={showPast} onChange={(e) => setShowPast(e.target.checked)} /> Show past bookings</label></div>
+        <div className="px-5 pt-3 text-xs flex flex-wrap items-center gap-3">
+          {rooms.length > 1 && <select className={input} value={roomFilter} onChange={(e) => setRoomFilter(e.target.value)} aria-label="Show bookings for"><option value="">All rooms</option>{rooms.map((r) => <option key={r.id}>{r.roomName}</option>)}</select>}
+          <label className="inline-flex items-center gap-2 text-slate-600 dark:text-slate-400"><input type="checkbox" checked={showPast} onChange={(e) => setShowPast(e.target.checked)} /> Show past bookings</label>
+        </div>
         {!shown.length && <p className="p-5 text-xs text-slate-500">No {showPast ? '' : 'upcoming '}bookings.</p>}
         <ul className="divide-y divide-slate-200 dark:divide-slate-800">
           {shown.map((b) => (
@@ -364,11 +385,11 @@ const RoomsSection: React.FC<GroupsAndGivingWorkspaceProps> = ({ roomBookings, s
                 <span className="font-semibold text-sm text-slate-900 dark:text-slate-100">{b.eventTitle}</span>
                 <span className="flex items-center gap-2">
                   <span className="font-mono text-indigo-600 dark:text-indigo-400">{b.date} · {b.startTime}–{b.endTime}</span>
-                  {canEditGroups && <button type="button" aria-label={`Cancel booking ${b.eventTitle}`} className="p-1 text-red-600"
+                  {canCancel(b) && <button type="button" aria-label={`Cancel booking ${b.eventTitle}`} className="p-1 text-red-600"
                     onClick={() => { if (confirm(`Cancel "${b.eventTitle}" on ${b.date}?`)) setRoomBookings((prev) => prev.filter((x) => x.id !== b.id)); }}><Trash2 className="w-3.5 h-3.5" /></button>}
                 </span>
               </div>
-              <div className="text-slate-500 dark:text-slate-400">{[b.roomName, b.organizer && `Booked by ${b.organizer}`, b.avRequired && 'Needs the projector'].filter(Boolean).join(' · ')}</div>
+              <div className="text-slate-500 dark:text-slate-400">{[b.roomName, b.organizer && `For ${b.organizer}`, b.avRequired && 'Needs the projector'].filter(Boolean).join(' · ')}</div>
               {b.setupNotes && <div className="text-slate-500">{b.setupNotes}</div>}
             </li>
           ))}

@@ -13,7 +13,7 @@ The church owns its Firebase project and chooses who can use it. The Suite's gen
 | People | People directory, including pastoral notes | People directory |
 | Kids | Child check-ins, pickup codes and medical notes | Child check-ins |
 | Finance | Giving records | Giving records |
-| Member | Groups, shared group materials, rooms and room bookings | None |
+| Member | Groups, shared group materials, rooms and every room booking (what, who for, when) | Book a free room slot; cancel their own bookings (rules v6) |
 | Family | Opt-in church directory | Own private profile and directory choices |
 
 A person may have more than one role. They can sign in with Google or with an email address and password. Email accounts must verify the address before entering their own profile or requesting shared church access. A link to the church does not grant record access; the owner or an admin approves each request. A verified person may enter their own name, contact number and household details before that approval. Other members cannot read those profiles. After removal, the server rejects new reads and writes to shared church records. Previously downloaded files or records already displayed on a device cannot be withdrawn remotely.

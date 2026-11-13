@@ -638,6 +638,9 @@ function SuiteWorkspace({ session, onExit }: { session: ChurchSession; onExit: (
               canSeeFinance={!session || canRead(session, 'donations')}
               canEditGroups={!session || canWrite(session, 'groups')}
               canEditFinance={!session || canWrite(session, 'donations')}
+              canBookRooms={!session || canWrite(session, 'bookings')}
+              myUid={session?.user.uid}
+              myName={session?.user.displayName || ''}
               senderEmail={session?.user.email || ''}
             />
           )}

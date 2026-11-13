@@ -170,6 +170,8 @@ export interface RoomBooking {
   organizer: string;
   avRequired: boolean;
   setupNotes: string; // For a room: what it has, e.g. "Seats 40, has a TV".
+  /** Sign-in id of the member who made the booking. They can cancel it; admins can cancel any. */
+  bookedByUid?: string;
 }
 
 /**

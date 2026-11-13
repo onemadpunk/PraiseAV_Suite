@@ -169,7 +169,7 @@ export function canWrite(session: ChurchSession, domain: DataDomain): boolean {
   if (session.owner || session.roles.includes('admin')) return true;
   const allowed: Partial<Record<DataDomain, ChurchRole[]>> = {
     plans: ['planner', 'worship_leader'], songs: ['planner', 'worship_leader'], members: ['people'],
-    checkins: ['kids'], groups: [], bookings: [], donations: ['finance'],
+    checkins: ['kids'], groups: [], bookings: ['member'], donations: ['finance'],
   };
   return (allowed[domain] || []).some((role) => session.roles.includes(role));
 }

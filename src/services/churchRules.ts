@@ -1,7 +1,7 @@
 // Each church installs these rules in its own Firebase project. A user owning
 // the Google account named here can administer the church from a fresh project;
 // every other person must be approved by an administrator in the Suite.
-export const CHURCH_RULES_VERSION = 'v5';
+export const CHURCH_RULES_VERSION = 'v6';
 
 export function churchRules(ownerEmail: string, includeDirectory = false): string {
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(ownerEmail)) throw new Error('Enter a valid owner email first.');
@@ -287,10 +287,28 @@ service cloud.firestore {
       allow create, update: if admin() && validRecord(id);
       allow delete: if admin();
     }
+    // Rooms (kind 'room') are set up by administrators. Any member can book a room
+    // under their own sign-in, and cancel only their own bookings.
+    function validMemberBooking(id) {
+      let b = request.resource.data;
+      return b.keys().hasOnly(['id', 'kind', 'roomName', 'eventTitle', 'date', 'startTime', 'endTime', 'organizer', 'avRequired', 'setupNotes', 'bookedByUid'])
+        && b.keys().hasAll(['id', 'kind', 'roomName', 'eventTitle', 'date', 'startTime', 'endTime', 'organizer', 'bookedByUid'])
+        && b.id == id && b.kind == 'booking' && b.bookedByUid == request.auth.uid
+        && b.roomName is string && b.roomName.size() > 0 && b.roomName.size() <= 100
+        && b.eventTitle is string && b.eventTitle.size() > 0 && b.eventTitle.size() <= 200
+        && b.date is string && b.date.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+        && b.startTime is string && b.startTime.matches('^[0-9]{2}:[0-9]{2}$')
+        && b.endTime is string && b.endTime.matches('^[0-9]{2}:[0-9]{2}$') && b.endTime > b.startTime
+        && b.organizer is string && b.organizer.size() <= 100
+        && (!('avRequired' in b) || b.avRequired is bool)
+        && (!('setupNotes' in b) || (b.setupNotes is string && b.setupNotes.size() <= 500));
+    }
     match /bookings/{id} {
       allow read: if admin() || hasRole('member');
-      allow create, update: if admin() && validRecord(id);
-      allow delete: if admin();
+      allow create: if (admin() && validRecord(id)) || (hasRole('member') && validMemberBooking(id));
+      allow update: if (admin() && validRecord(id))
+        || (hasRole('member') && resource.data.bookedByUid == request.auth.uid && validMemberBooking(id));
+      allow delete: if admin() || (hasRole('member') && resource.data.bookedByUid == request.auth.uid);
     }
     match /donations/{id} {
       allow read: if admin() || hasRole('finance');
