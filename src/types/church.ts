@@ -129,40 +129,64 @@ export interface CheckInChild {
   serviceDate: string;
 }
 
+/** Something shared with a small group: a study sheet, a Drive link, notes for the week. */
+export interface GroupMaterial {
+  id: string;
+  title: string;
+  link: string; // Optional web link (Google Drive, YouTube, a PDF). '' when it is just a note.
+  note: string;
+  sharedAt: string; // YYYY-MM-DD
+}
+
 export interface SmallGroup {
   id: string;
   name: string;
-  category: 'Home Group' | 'Bible Study' | 'Youth & Young Adults' | 'Discipleship Course';
+  category: string; // e.g. 'Home Group', 'Bible Study'
   leaderName: string;
   meetingDay: string;
   meetingTime: string;
   location: string;
-  currentMembers: number;
+  currentMembers: number; // Kept for older records; memberIds is the real list when present.
   maxCapacity: number;
   currentStudy: string;
   active: boolean;
+  /** Ids from People. Only names are resolved by people who can read People; others see a count. */
+  memberIds?: string[];
+  materials?: GroupMaterial[];
 }
 
+/**
+ * Stored in the "bookings" collection. kind 'room' is one of the church's own rooms,
+ * set up by an administrator (date and times are empty). Anything else is a booking.
+ */
 export interface RoomBooking {
   id: string;
-  roomName: 'Main Sanctuary' | 'Fellowship Hall' | 'Youth Loft' | 'AV Broadcast Suite' | 'Kids Wing';
+  kind?: 'room' | 'booking';
+  roomName: string;
   eventTitle: string;
   date: string;
   startTime: string;
   endTime: string;
   organizer: string;
   avRequired: boolean;
-  setupNotes: string;
+  setupNotes: string; // For a room: what it has, e.g. "Seats 40, has a TV".
 }
 
+/**
+ * One entry in the giving record. Most entries are a collection total
+ * (e.g. "Sunday morning collection") with no name. Naming the giver is optional
+ * and only finance and administrators can read giving at all.
+ */
 export interface DonationRecord {
   id: string;
-  donorName: string;
-  household: string;
-  amount: number;
-  fund: 'General Ministry Fund' | 'Building & AV Upgrade' | 'Community Foodbank' | 'Youth Camp Bursary';
-  method: 'Standing Order (Bank)' | 'BACS Transfer' | 'Cash Offering' | 'Contactless Terminal';
-  giftAidEligible: boolean;
   date: string;
-  reference: string;
+  amount: number;
+  source?: string; // How it came in: "Sunday morning collection", "Bank transfer", ...
+  fund: string; // What it is for: "General fund", "Building fund", ...
+  method: string;
+  donorName: string; // '' when not named.
+  household?: string;
+  note?: string;
+  reference?: string;
+  giftAidEligible?: boolean; // Older records only. The Suite no longer uses Gift Aid.
 }
